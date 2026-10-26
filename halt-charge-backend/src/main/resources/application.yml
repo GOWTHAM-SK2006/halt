@@ -29,11 +29,13 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: false
-      javax:
-        persistence:
-          jdbc:
-            # Required for Supabase SSL
-            url: ${DB_URL}
+        # Required for PgBouncer Transaction pooler (Supabase pooler)
+        jdbc:
+          use_get_generated_keys: true
+          lob:
+            non_contextual_creation: true
+        temp:
+          use_jdbc_metadata_defaults: false
 
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.xml
