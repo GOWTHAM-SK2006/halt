@@ -1,0 +1,25 @@
+# Docker build context exclusions
+# Keeps the Docker image lean by excluding things the build doesn't need
+
+# Backend — not needed for frontend Docker build
+halt-charge-backend/
+
+# Frontend build artifacts and dev files
+halt-charge-payment/node_modules/
+halt-charge-payment/.next/
+halt-charge-payment/.env.local
+halt-charge-payment/.env*.local
+
+# Git and IDE
+.git/
+.gitignore
+.idea/
+.vscode/
+
+# Docs
+README.md
+*.md
+
+# Other config files at root (Dockerfile uses its own logic)
+nixpacks.toml
+package.json
