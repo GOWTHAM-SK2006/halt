@@ -11,4 +11,5 @@
     <include file="classpath:db/changelog/004-create-payments.xml"/>
     <include file="classpath:db/changelog/005-create-invoices.xml"/>
     <include file="classpath:db/changelog/006-seed-demo-data.xml"/>
+    <include file="classpath:db/changelog/007-admin-and-schema-rebuild.xml"/>
 </databaseChangeLog>

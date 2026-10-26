@@ -67,6 +67,12 @@ haltcharge:
   company-gstin: "XXXXXXXXXXXX"
   invoice-prefix: "HC-INV"
   token-expiry-hours: 48
+  # Frontend URL used to construct QR payment links
+  frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:3000}
+  # JWT authentication for admin portal
+  jwt:
+    secret: ${JWT_SECRET:HaltAndChargeDefaultSecretKey2025PleaseChange}
+    expiration-ms: ${JWT_EXPIRY_MS:86400000}   # 24 hours
 
 # ─── Actuator (Railway health check at /actuator/health) ─────────────────────
 management:
