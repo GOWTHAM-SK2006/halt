@@ -1,0 +1,33 @@
+# ─── OS ──────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── IDE / Editor ────────────────────────────────────────────────────────────
+.idea/
+*.iml
+.vscode/
+*.code-workspace
+
+# ─── Secrets — NEVER commit ──────────────────────────────────────────────────
+.env
+.env.local
+.env.production
+*.secret
+*.pem
+*.key
+
+# ─── Frontend (Next.js) ──────────────────────────────────────────────────────
+halt-charge-payment/node_modules/
+halt-charge-payment/.next/
+halt-charge-payment/out/
+halt-charge-payment/.env.local
+halt-charge-payment/.env*.local
+
+# ─── Backend (Maven / Spring Boot) ───────────────────────────────────────────
+halt-charge-backend/target/
+halt-charge-backend/.env
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+*.log
+logs/

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="001-create-charging-stations" author="haltcharge">
+        <createTable tableName="charging_stations">
+            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="charger_id" type="VARCHAR(50)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="station_name" type="VARCHAR(200)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="location" type="VARCHAR(500)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="connector_type" type="VARCHAR(100)"/>
+            <column name="tariff_per_kwh" type="DECIMAL(10,4)" defaultValueNumeric="12.0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="service_fee" type="DECIMAL(10,2)" defaultValueNumeric="0.0"/>
+            <column name="is_active" type="BOOLEAN" defaultValueBoolean="true"/>
+            <column name="created_at" type="TIMESTAMPTZ" defaultValueComputed="NOW()"/>
+            <column name="updated_at" type="TIMESTAMPTZ" defaultValueComputed="NOW()"/>
+        </createTable>
+        <createIndex tableName="charging_stations" indexName="idx_stations_charger_id">
+            <column name="charger_id"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>

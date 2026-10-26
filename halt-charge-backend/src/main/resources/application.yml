@@ -1,0 +1,68 @@
+spring:
+  application:
+    name: halt-charge-payment
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/haltcharge_payment}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      connection-timeout: 20000
+      maximum-pool-size: 10
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.xml
+
+# ─── Server ──────────────────────────────────────────────────────────────────
+server:
+  port: ${PORT:8080}
+  error:
+    include-message: always
+    include-binding-errors: always
+
+# ─── Razorpay ─────────────────────────────────────────────────────────────────
+razorpay:
+  key-id: ${RAZORPAY_KEY_ID}
+  key-secret: ${RAZORPAY_KEY_SECRET}
+  webhook-secret: ${RAZORPAY_WEBHOOK_SECRET}
+
+# ─── Halt & Charge Business Config ───────────────────────────────────────────
+haltcharge:
+  gst-rate: 0.05
+  default-tariff-per-kwh: 12.00
+  support-email: support@haltandcharge.in
+  support-phone: "+91-XXXXXXXXXX"
+  company-name: "Halt & Charge"
+  company-gstin: "XXXXXXXXXXXX"        # Replace with actual GSTIN
+  invoice-prefix: "HC-INV"
+  token-expiry-hours: 48               # QR payment link valid for 48 hours
+
+# ─── Actuator (Railway health check) ─────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+# ─── CORS ─────────────────────────────────────────────────────────────────────
+cors:
+  allowed-origins: ${FRONTEND_ORIGIN:http://localhost:3000}
+
+# ─── Logging ──────────────────────────────────────────────────────────────────
+logging:
+  level:
+    com.haltcharge: INFO
+    org.springframework.web: WARN

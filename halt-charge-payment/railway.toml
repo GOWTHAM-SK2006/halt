@@ -1,0 +1,15 @@
+# Railway service configuration for the Next.js frontend
+# Set "Root Directory" to "halt-charge-payment" when creating the service in Railway
+
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "node .next/standalone/server.js"
+healthcheckPath = "/"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[[services]]
+name = "halt-charge-payment"

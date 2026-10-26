@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="005-create-invoices" author="haltcharge">
+        <createTable tableName="invoices">
+            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="invoice_number" type="VARCHAR(100)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="payment_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_invoice_payment"
+                    references="payments(id)"/>
+            </column>
+            <column name="charging_session_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_invoice_session"
+                    references="charging_sessions(id)"/>
+            </column>
+            <column name="invoice_pdf_url" type="VARCHAR(500)"/>
+            <column name="created_at" type="TIMESTAMPTZ" defaultValueComputed="NOW()"/>
+        </createTable>
+        <createIndex tableName="invoices" indexName="idx_invoices_invoice_number">
+            <column name="invoice_number"/>
+        </createIndex>
+        <createIndex tableName="invoices" indexName="idx_invoices_payment_id">
+            <column name="payment_id"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>
