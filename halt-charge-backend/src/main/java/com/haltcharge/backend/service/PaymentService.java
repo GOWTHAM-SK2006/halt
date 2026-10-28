@@ -36,6 +36,8 @@ public class PaymentService {
     private final WebhookEventRepository webhookRepo;
     private final RazorpayClient razorpayClient;
     private final QrCodeService qrCodeService;
+
+    // Not injected by constructor — initialized directly
     private final SecureRandom secureRandom = new SecureRandom();
 
     @Value("${app.razorpay.key-id}")

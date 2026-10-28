@@ -15,20 +15,13 @@ public class RazorpayConfig {
     @Value("${app.razorpay.key-secret}")
     private String keySecret;
 
+    /**
+     * Creates the Razorpay SDK client.
+     * Key ID and secret are injected from environment variables.
+     * The secret is NEVER exposed to frontend code.
+     */
     @Bean
     public RazorpayClient razorpayClient() throws RazorpayException {
         return new RazorpayClient(keyId, keySecret);
-    }
-
-    @Bean
-    public String razorpayKeyId() {
-        return keyId;
-    }
-
-    @Bean
-    public String razorpayWebhookSecret(
-        @Value("${app.razorpay.webhook-secret}") String webhookSecret
-    ) {
-        return webhookSecret;
     }
 }
