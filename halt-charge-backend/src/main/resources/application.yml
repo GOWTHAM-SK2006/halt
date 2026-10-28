@@ -1,0 +1,96 @@
+spring:
+  application:
+    name: halt-charge-payment
+
+  datasource:
+    # ── Supabase PostgreSQL ────────────────────────────────────────────────────
+    # Set DB_URL in Railway environment variables.
+    # Supabase direct connection format:
+    #   jdbc:postgresql://db.<PROJECT_REF>.supabase.co:5432/postgres?sslmode=require
+    # Supabase pooler (recommended for Railway containers):
+    #   jdbc:postgresql://aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      connection-timeout: 30000
+      maximum-pool-size: 5          # keep low for Supabase free tier (max 60 connections)
+      minimum-idle: 1
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      connection-test-query: SELECT 1
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: false
+        # Required for PgBouncer Transaction pooler (Supabase pooler)
+        jdbc:
+          use_get_generated_keys: true
+          lob:
+            non_contextual_creation: true
+        temp:
+          use_jdbc_metadata_defaults: false
+
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.xml
+    # Use Supabase connection — Liquibase runs migrations on startup
+    url: ${DB_URL}
+    user: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+# ─── Server ───────────────────────────────────────────────────────────────────
+server:
+  port: ${PORT:8080}
+  error:
+    include-message: always
+    include-binding-errors: always
+
+# ─── Razorpay ─────────────────────────────────────────────────────────────────
+razorpay:
+  key-id: ${RAZORPAY_KEY_ID}
+  key-secret: ${RAZORPAY_KEY_SECRET}
+  webhook-secret: ${RAZORPAY_WEBHOOK_SECRET}
+
+# ─── Halt & Charge Business Config ───────────────────────────────────────────
+haltcharge:
+  gst-rate: 0.05
+  default-tariff-per-kwh: 12.00
+  support-email: support@haltandcharge.in
+  support-phone: "+91-XXXXXXXXXX"
+  company-name: "Halt & Charge"
+  company-gstin: "XXXXXXXXXXXX"
+  invoice-prefix: "HC-INV"
+  token-expiry-hours: 48
+  # Frontend URL used to construct QR payment links
+  frontend-base-url: ${FRONTEND_BASE_URL:http://localhost:3000}
+  # JWT authentication for admin portal
+  jwt:
+    secret: ${JWT_SECRET:HaltAndChargeDefaultSecretKey2025PleaseChange}
+    expiration-ms: ${JWT_EXPIRY_MS:86400000}   # 24 hours
+
+# ─── Actuator (Railway health check at /actuator/health) ─────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+# ─── CORS ─────────────────────────────────────────────────────────────────────
+cors:
+  allowed-origins: ${FRONTEND_ORIGIN:http://localhost:3000}
+
+# ─── Logging ──────────────────────────────────────────────────────────────────
+logging:
+  level:
+    com.haltcharge: INFO
+    org.springframework.web: WARN
+    liquibase: INFO

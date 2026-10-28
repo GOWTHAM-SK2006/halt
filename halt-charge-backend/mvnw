@@ -1,0 +1,29 @@
+#!/bin/sh
+# Maven Wrapper Script
+# Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements.
+
+set -e
+
+# Determine the script directory
+MAVEN_PROJECTBASEDIR="${MAVEN_BASEDIR:-$(pwd)}"
+WRAPPERJAR="$MAVEN_PROJECTBASEDIR/.mvn/wrapper/maven-wrapper.jar"
+PROPERTIES="$MAVEN_PROJECTBASEDIR/.mvn/wrapper/maven-wrapper.properties"
+
+# Download maven-wrapper.jar if absent
+if [ ! -f "$WRAPPERJAR" ]; then
+    echo "Downloading Maven Wrapper..."
+    DISTRIBUTION_URL=$(grep distributionUrl "$PROPERTIES" | cut -d= -f2-)
+    WRAPPER_URL=$(grep wrapperUrl "$PROPERTIES" | cut -d= -f2-)
+    # Download the wrapper JAR
+    if command -v wget > /dev/null 2>&1; then
+        wget -q -O "$WRAPPERJAR" "$WRAPPER_URL"
+    elif command -v curl > /dev/null 2>&1; then
+        curl -sL -o "$WRAPPERJAR" "$WRAPPER_URL"
+    fi
+fi
+
+exec java \
+    $MAVEN_OPTS \
+    $MAVEN_DEBUG_OPTS \
+    -jar "$WRAPPERJAR" \
+    "$@"

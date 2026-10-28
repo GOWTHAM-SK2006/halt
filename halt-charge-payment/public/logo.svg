@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">
+  <defs>
+    <radialGradient id="glowGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#39FF14" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#39FF14" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="hGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#C0C0C0"/>
+      <stop offset="50%" stop-color="#E8E8E8"/>
+      <stop offset="100%" stop-color="#909090"/>
+    </linearGradient>
+    <linearGradient id="chargePillar" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4AFF20"/>
+      <stop offset="100%" stop-color="#1A8000"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background circle glow -->
+  <circle cx="150" cy="120" r="90" fill="url(#glowGrad)"/>
+  
+  <!-- Outer ring arc (open at bottom right) -->
+  <path d="M 150 35 A 85 85 0 1 1 220 95" 
+    fill="none" 
+    stroke="url(#chargePillar)" 
+    stroke-width="5" 
+    stroke-linecap="round"
+    filter="url(#glow)"/>
+  
+  <!-- H letter (metallic silver) -->
+  <rect x="110" y="65" width="18" height="90" rx="3" fill="url(#hGrad)"/>
+  <rect x="128" y="96" width="24" height="18" rx="2" fill="url(#hGrad)"/>
+  <rect x="152" y="65" width="8" height="90" rx="2" fill="url(#hGrad)"/>
+  
+  <!-- Charging pillar (green, right side of H) -->
+  <rect x="162" y="62" width="22" height="75" rx="5" fill="url(#chargePillar)" filter="url(#glow)"/>
+  
+  <!-- Lightning bolt on pillar -->
+  <polygon points="170,82 178,82 172,97 180,97 168,117 172,103 164,103" fill="#050505"/>
+  
+  <!-- Plug icon -->
+  <line x1="184" y1="90" x2="196" y2="78" stroke="#39FF14" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="199" cy="75" r="3" fill="#39FF14"/>
+  
+  <!-- HALT text -->
+  <text x="32" y="230" font-family="Arial, sans-serif" font-weight="900" font-size="42" fill="url(#hGrad)" letter-spacing="1">HALT</text>
+  
+  <!-- & -->
+  <text x="148" y="230" font-family="Arial, sans-serif" font-weight="700" font-size="38" fill="#CCCCCC">&amp;</text>
+  
+  <!-- CHARGE text (green) -->
+  <text x="172" y="230" font-family="Arial, sans-serif" font-weight="900" font-size="42" fill="#39FF14" letter-spacing="1" filter="url(#glow)">CHARGE</text>
+  
+  <!-- Tagline -->
+  <line x1="40" y1="248" x2="85" y2="248" stroke="#39FF14" stroke-width="1.5"/>
+  <text x="150" y="255" font-family="Arial, sans-serif" font-weight="400" font-size="10.5" fill="#888888" text-anchor="middle" letter-spacing="3">REDEFINING THE WAY YOU RECHARGE</text>
+  <line x1="215" y1="248" x2="260" y2="248" stroke="#39FF14" stroke-width="1.5"/>
+</svg>

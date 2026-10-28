@@ -1,0 +1,16 @@
+# Root-level Railpack/Nixpacks config
+# Tells Railway: build the Next.js frontend from halt-charge-payment/
+
+providers = ["node"]
+
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
+[phases.install]
+cmds = ["cd halt-charge-payment && npm ci"]
+
+[phases.build]
+cmds = ["cd halt-charge-payment && npm run build"]
+
+[start]
+cmd = "node halt-charge-payment/.next/standalone/server.js"

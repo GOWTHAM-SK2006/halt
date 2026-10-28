@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <!--
+      Migration 007 — Rebuild payment_sessions as standalone + add admin_users
+      This drops the FK-dependent old schema and creates a clean one for admin-driven QR sessions.
+    -->
+
+    <changeSet id="007-drop-old-schema" author="haltcharge">
+        <!-- Drop old tables in dependency order -->
+        <sql>DROP TABLE IF EXISTS invoices CASCADE;</sql>
+        <sql>DROP TABLE IF EXISTS payments CASCADE;</sql>
+        <sql>DROP TABLE IF EXISTS payment_sessions CASCADE;</sql>
+        <sql>DROP TABLE IF EXISTS charging_sessions CASCADE;</sql>
+        <sql>DROP TABLE IF EXISTS charging_stations CASCADE;</sql>
+    </changeSet>
+
+    <changeSet id="007-create-payment-sessions" author="haltcharge">
+        <createTable tableName="payment_sessions">
+            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="session_id" type="VARCHAR(100)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="token" type="VARCHAR(255)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+
+            <!-- Station info -->
+            <column name="station_name" type="VARCHAR(255)"/>
+            <column name="location" type="VARCHAR(500)"/>
+            <column name="charger_id" type="VARCHAR(100)"/>
+            <column name="connector_type" type="VARCHAR(100)"/>
+
+            <!-- Billing -->
+            <column name="base_amount" type="NUMERIC(12,2)"><constraints nullable="false"/></column>
+            <column name="tax_rate" type="NUMERIC(6,4)"><constraints nullable="false"/></column>
+            <column name="tax_amount" type="NUMERIC(12,2)"><constraints nullable="false"/></column>
+            <column name="service_fee" type="NUMERIC(12,2)" defaultValueNumeric="0"/>
+            <column name="discount" type="NUMERIC(12,2)" defaultValueNumeric="0"/>
+            <column name="total_amount" type="NUMERIC(12,2)"><constraints nullable="false"/></column>
+            <column name="currency" type="CHAR(3)" defaultValue="INR"/>
+
+            <!-- Status -->
+            <column name="status" type="VARCHAR(20)" defaultValue="PENDING">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Metadata -->
+            <column name="description" type="VARCHAR(500)"/>
+            <column name="customer_name" type="VARCHAR(200)"/>
+            <column name="customer_phone" type="VARCHAR(20)"/>
+            <column name="payment_url" type="VARCHAR(500)"/>
+
+            <!-- Gateway -->
+            <column name="razorpay_order_id" type="VARCHAR(100)"/>
+            <column name="razorpay_payment_id" type="VARCHAR(100)"/>
+            <column name="payment_method" type="VARCHAR(100)"/>
+            <column name="paid_at" type="TIMESTAMPTZ"/>
+
+            <!-- Timestamps -->
+            <column name="expires_at" type="TIMESTAMPTZ"/>
+            <column name="created_at" type="TIMESTAMPTZ" defaultValueComputed="NOW()"/>
+            <column name="updated_at" type="TIMESTAMPTZ" defaultValueComputed="NOW()"/>
+        </createTable>
+
+        <createIndex tableName="payment_sessions" indexName="idx_ps_token">
+            <column name="token"/>
+        </createIndex>
+        <createIndex tableName="payment_sessions" indexName="idx_ps_status">
+            <column name="status"/>
+        </createIndex>
+        <createIndex tableName="payment_sessions" indexName="idx_ps_created_at">
+            <column name="created_at" descending="true"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="007-create-invoices" author="haltcharge">
+        <createTable tableName="invoices">
+            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="invoice_number" type="VARCHAR(100)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="session_id" type="UUID">
+                <constraints nullable="false"
+                    foreignKeyName="fk_invoice_session"
+                    references="payment_sessions(id)"/>
+            </column>
+            <column name="razorpay_order_id" type="VARCHAR(100)"/>
+            <column name="razorpay_payment_id" type="VARCHAR(100)"/>
+            <column name="amount_paid" type="NUMERIC(12,2)"/>
+            <column name="payment_method" type="VARCHAR(100)"/>
+            <column name="paid_at" type="TIMESTAMPTZ"/>
+            <column name="created_at" type="TIMESTAMPTZ" defaultValueComputed="NOW()"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="007-create-admin-users" author="haltcharge">
+        <createTable tableName="admin_users">
+            <column name="id" type="BIGSERIAL">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="username" type="VARCHAR(100)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="password_hash" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="role" type="VARCHAR(50)" defaultValue="ADMIN">
+                <constraints nullable="false"/>
+            </column>
+            <column name="is_active" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMPTZ" defaultValueComputed="NOW()"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="007-seed-admin-user" author="haltcharge">
+        <!--
+          Default admin credentials: admin / HaltCharge@2025
+          Password is BCrypt hash — change via ADMIN_PASSWORD_HASH env var or update here.
+          To generate a new hash: https://bcrypt-generator.com (12 rounds)
+        -->
+        <sql>
+            INSERT INTO admin_users (username, password_hash, role, is_active)
+            VALUES ('admin', '$2a$12$LQv3c1yqBwEOjSvSJxRj5eS2K3m.GXZR4kqYlVJWJQmJhFz7mDp6i', 'ADMIN', true)
+            ON CONFLICT (username) DO NOTHING;
+        </sql>
+        <!-- Hash above = BCrypt of 'HaltCharge@2025' with 12 rounds -->
+    </changeSet>
+
+</databaseChangeLog>
