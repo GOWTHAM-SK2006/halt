@@ -298,9 +298,9 @@ public class PaymentService {
 
     private boolean verifyRazorpaySignature(String orderId, String paymentId, String signature) {
         try {
-            String data = orderId + "|" + paymentId;
             return Utils.verifyPaymentSignature(
-                new JSONObject().put("razorpay_order_id", orderId)
+                new JSONObject()
+                    .put("razorpay_order_id", orderId)
                     .put("razorpay_payment_id", paymentId)
                     .put("razorpay_signature", signature),
                 razorpayKeySecret
