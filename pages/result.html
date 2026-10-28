@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Payment Result — Halt & Charge</title>
+  <meta name="description" content="View your EV charging payment result and download invoice." />
+  <link rel="stylesheet" href="../css/styles.css" />
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-primary);
+    }
+
+    /* Result page */
+    .result-page {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Animated background blobs */
+    .result-bg {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .blob {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(100px);
+      opacity: 0.12;
+    }
+    .blob-success-1 { width: 400px; height: 400px; background: #39FF14; top: -150px; left: -100px; animation: float 10s ease-in-out infinite; }
+    .blob-success-2 { width: 250px; height: 250px; background: #00e676; bottom: -80px; right: 0; animation: float 8s ease-in-out infinite reverse; }
+    .blob-failed-1  { width: 400px; height: 400px; background: #ff3b3b; top: -150px; right: -100px; animation: float 10s ease-in-out infinite; }
+    .blob-failed-2  { width: 250px; height: 250px; background: #ff6b6b; bottom: -80px; left: 0; animation: float 8s ease-in-out infinite reverse; }
+    .blob-pending-1 { width: 400px; height: 400px; background: #ffaa00; top: -150px; left: 50%; animation: float 10s ease-in-out infinite; }
+    .blob-pending-2 { width: 250px; height: 250px; background: #ffc947; bottom: -80px; right: 30%; animation: float 8s ease-in-out infinite reverse; }
+
+    /* Card */
+    .result-card {
+      position: relative;
+      z-index: 1;
+      max-width: 480px;
+      width: 100%;
+      background: var(--bg-card);
+      border-radius: 28px;
+      overflow: hidden;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.6);
+      animation: slideUp 0.5s ease;
+    }
+
+    /* Result banner */
+    .result-banner {
+      padding: 40px 32px 32px;
+      text-align: center;
+      position: relative;
+    }
+    .result-banner::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+    }
+    .banner-success::before { background: linear-gradient(90deg, #39FF14, #00e676); }
+    .banner-failed::before  { background: linear-gradient(90deg, #ff3b3b, #ff6b6b); }
+    .banner-pending::before { background: linear-gradient(90deg, #ffaa00, #ffc947); }
+
+    /* Result icon */
+    .result-icon-wrap {
+      width: 96px;
+      height: 96px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      position: relative;
+    }
+    .result-icon-wrap::after {
+      content: '';
+      position: absolute;
+      inset: -6px;
+      border-radius: 50%;
+      opacity: 0.25;
+    }
+    .icon-success { background: rgba(57,255,20,0.12); }
+    .icon-success::after { border: 2px solid #39FF14; animation: pulseNeon 2s ease-in-out infinite; }
+    .icon-failed  { background: rgba(255,59,59,0.12); }
+    .icon-failed::after  { border: 2px solid #ff3b3b; }
+    .icon-pending { background: rgba(255,170,0,0.12); }
+    .icon-pending::after { border: 2px solid #ffaa00; }
+
+    .result-icon { font-size: 3rem; line-height: 1; }
+
+    .result-title {
+      font-size: 1.6rem;
+      font-weight: 800;
+      margin-bottom: 6px;
+      letter-spacing: -0.02em;
+    }
+    .title-success { color: var(--neon); }
+    .title-failed  { color: var(--red); }
+    .title-pending { color: var(--amber); }
+
+    .result-subtitle {
+      font-size: 0.9rem;
+      color: var(--muted);
+      max-width: 300px;
+      margin: 0 auto;
+      line-height: 1.5;
+    }
+
+    .demo-sim-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(255,170,0,0.1);
+      border: 1px solid rgba(255,170,0,0.25);
+      border-radius: 100px;
+      padding: 4px 12px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--amber);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 14px;
+    }
+
+    /* Details section */
+    .result-details {
+      border-top: 1px solid var(--border);
+      padding: 24px 28px;
+    }
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 10px 0;
+      border-bottom: 1px solid #181818;
+    }
+    .detail-row:last-child { border-bottom: none; }
+    .detail-key { font-size: 0.82rem; color: var(--muted); font-weight: 500; }
+    .detail-val { font-size: 0.88rem; color: var(--white); font-weight: 600; text-align: right; max-width: 60%; word-break: break-word; }
+    .detail-val.mono { font-family: var(--mono); }
+    .detail-val.neon { color: var(--neon); }
+    .detail-val.amber { color: var(--amber); }
+    .detail-val.red   { color: var(--red); }
+
+    /* Actions */
+    .result-actions {
+      padding: 20px 28px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Invoice download (success only) */
+    .invoice-card {
+      background: linear-gradient(135deg, rgba(57,255,20,0.06), rgba(57,255,20,0.02));
+      border: 1px solid rgba(57,255,20,0.2);
+      border-radius: var(--radius);
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 4px;
+    }
+    .invoice-icon {
+      width: 44px; height: 44px;
+      background: rgba(57,255,20,0.1);
+      border-radius: var(--radius);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      font-size: 1.4rem;
+    }
+    .invoice-info { flex: 1; }
+    .invoice-name { font-size: 0.88rem; font-weight: 700; color: var(--white); }
+    .invoice-sub  { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+
+    /* Footer nav */
+    .result-footer {
+      padding: 16px 28px 28px;
+      display: flex;
+      gap: 10px;
+      border-top: 1px solid var(--border);
+    }
+
+    /* Confetti for success */
+    .confetti-container {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 999;
+      overflow: hidden;
+    }
+    .confetti-piece {
+      position: absolute;
+      top: -12px;
+      width: 8px;
+      height: 12px;
+      border-radius: 2px;
+      animation: confettiFall linear forwards;
+      transform-origin: center;
+    }
+    @keyframes confettiFall {
+      0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(105vh) rotate(720deg); opacity: 0; }
+    }
+
+    /* Invoice print styles */
+    @media print {
+      .result-actions, .result-footer, .result-bg { display: none; }
+      .result-card { box-shadow: none; border: 1px solid #ddd; }
+      body { background: white; color: black; }
+    }
+
+    @media (max-width: 520px) {
+      .result-banner { padding: 30px 20px 24px; }
+      .result-details, .result-actions, .result-footer { padding-left: 20px; padding-right: 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Animated background -->
+<div class="result-bg" id="resultBg"></div>
+
+<!-- Confetti container -->
+<div class="confetti-container" id="confettiContainer"></div>
+
+<main class="result-page">
+  <div class="result-card" id="resultCard">
+
+    <!-- ── Banner ── -->
+    <div class="result-banner" id="resultBanner">
+      <div class="result-icon-wrap" id="resultIconWrap">
+        <span class="result-icon" id="resultIcon"></span>
+      </div>
+      <h1 class="result-title" id="resultTitle"></h1>
+      <p class="result-subtitle" id="resultSubtitle"></p>
+      <div class="demo-sim-tag">⚡ Simulated Result · Demo Mode</div>
+    </div>
+
+    <!-- ── Transaction Details ── -->
+    <div class="result-details" id="resultDetails"></div>
+
+    <!-- ── Invoice (success only) ── -->
+    <div id="invoiceSection" style="display:none;padding: 0 28px">
+      <div class="invoice-card">
+        <div class="invoice-icon">🧾</div>
+        <div class="invoice-info">
+          <div class="invoice-name" id="invoiceName">Invoice · HC-INV-XXXXXX</div>
+          <div class="invoice-sub">EV Charging Session · Simulated Invoice</div>
+        </div>
+        <button class="btn btn-primary btn-sm" id="downloadInvoiceBtn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Download
+        </button>
+      </div>
+    </div>
+
+    <!-- ── Actions ── -->
+    <div class="result-actions" id="resultActions"></div>
+
+    <!-- ── Footer ── -->
+    <div class="result-footer">
+      <a href="payment.html" class="btn btn-ghost btn-sm" style="flex:1;justify-content:center">
+        ← Back to Payment
+      </a>
+      <a href="dashboard.html" class="btn btn-outline btn-sm" style="flex:1;justify-content:center">
+        Dashboard
+      </a>
+    </div>
+
+  </div>
+</main>
+
+<script src="../js/utils.js"></script>
+<script>
+  const p      = Params.all();
+  const status = p.status || 'success';
+  const txn    = p.txn || fmt.txnId();
+  const amount = parseFloat(p.amount || 295);
+  const station = decodeURIComponent(p.station || 'HC-BLR-01');
+  const charger = p.charger || 'CHG-005';
+
+  // ── Config by status ──
+  const config = {
+    success: {
+      bannerClass: 'banner-success',
+      iconClass:   'icon-success',
+      icon:        '✅',
+      title:       'Payment Successful!',
+      titleClass:  'title-success',
+      subtitle:    'Your EV charging session has been confirmed. Plug in your vehicle to begin charging.',
+      blobHtml:    '<div class="blob blob-success-1"></div><div class="blob blob-success-2"></div>',
+    },
+    failed: {
+      bannerClass: 'banner-failed',
+      iconClass:   'icon-failed',
+      icon:        '❌',
+      title:       'Payment Failed',
+      titleClass:  'title-failed',
+      subtitle:    'Your payment could not be processed. Please try again or use a different payment method.',
+      blobHtml:    '<div class="blob blob-failed-1"></div><div class="blob blob-failed-2"></div>',
+    },
+    pending: {
+      bannerClass: 'banner-pending',
+      iconClass:   'icon-pending',
+      icon:        '⏳',
+      title:       'Payment Pending',
+      titleClass:  'title-pending',
+      subtitle:    'Your payment is being verified. This may take a few minutes. Do not retry.',
+      blobHtml:    '<div class="blob blob-pending-1"></div><div class="blob blob-pending-2"></div>',
+    },
+  };
+
+  const cfg = config[status] || config.success;
+
+  // ── Apply banner ──
+  const banner = document.getElementById('resultBanner');
+  banner.classList.add(cfg.bannerClass);
+  document.getElementById('resultIconWrap').classList.add(cfg.iconClass);
+  document.getElementById('resultIcon').textContent = cfg.icon;
+  const titleEl = document.getElementById('resultTitle');
+  titleEl.textContent = cfg.title;
+  titleEl.classList.add(cfg.titleClass);
+  document.getElementById('resultSubtitle').textContent = cfg.subtitle;
+
+  // ── Background blobs ──
+  document.getElementById('resultBg').innerHTML = cfg.blobHtml;
+
+  // ── Details table ──
+  const now = new Date();
+  const details = [
+    { key: 'Transaction ID', val: txn, cls: 'mono neon' },
+    { key: 'Status', val: status.charAt(0).toUpperCase() + status.slice(1), cls: status === 'success' ? 'neon' : status === 'failed' ? 'red' : 'amber' },
+    { key: 'Station', val: station },
+    { key: 'Charger ID', val: charger, cls: 'mono' },
+    { key: 'Amount Paid', val: fmt.currency(amount), cls: 'neon' },
+    { key: 'Date & Time', val: `${fmt.date(now)} · ${fmt.time(now)}` },
+    { key: 'Payment Mode', val: 'UPI · Demo' },
+    { key: 'Invoice No.', val: `HC-INV-${txn.slice(-6)}`, cls: 'mono' },
+  ];
+
+  const detailsHtml = details.map(d => `
+    <div class="detail-row">
+      <span class="detail-key">${d.key}</span>
+      <span class="detail-val ${d.cls || ''}">${d.val}</span>
+    </div>
+  `).join('');
+  document.getElementById('resultDetails').innerHTML = detailsHtml;
+
+  // ── Invoice section (success only) ──
+  if (status === 'success') {
+    const invoiceSection = document.getElementById('invoiceSection');
+    invoiceSection.style.display = 'block';
+    document.getElementById('invoiceName').textContent = `Invoice · HC-INV-${txn.slice(-6)}`;
+
+    document.getElementById('downloadInvoiceBtn').addEventListener('click', () => {
+      generateInvoice();
+    });
+  }
+
+  // ── Actions ──
+  const actionsEl = document.getElementById('resultActions');
+  if (status === 'failed') {
+    actionsEl.innerHTML = `
+      <a href="payment.html?station=${encodeURIComponent(station)}&charger=${charger}&amount=${amount}&tax=0&total=${amount}"
+         class="btn btn-primary btn-lg w-full" style="justify-content:center">
+        🔄 Retry Payment
+      </a>
+    `;
+  } else if (status === 'pending') {
+    actionsEl.innerHTML = `
+      <div class="alert alert-warning" style="justify-content:flex-start">
+        ⚠️ Do not retry the payment. We will notify you once it is confirmed.
+      </div>
+      <button class="btn btn-ghost w-full" style="justify-content:center" onclick="location.reload()">
+        🔃 Refresh Status
+      </button>
+    `;
+  } else {
+    actionsEl.innerHTML = `
+      <div class="alert alert-success" style="justify-content:flex-start">
+        ✓ You may now plug in your vehicle and begin charging.
+      </div>
+    `;
+  }
+
+  // ── Confetti (success only) ──
+  if (status === 'success') {
+    spawnConfetti();
+  }
+
+  function spawnConfetti() {
+    const colors = ['#39FF14', '#ffffff', '#ffaa00', '#00e5ff', '#ff6b6b'];
+    const container = document.getElementById('confettiContainer');
+    for (let i = 0; i < 80; i++) {
+      setTimeout(() => {
+        const piece = document.createElement('div');
+        piece.className = 'confetti-piece';
+        piece.style.left = Math.random() * 100 + 'vw';
+        piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+        piece.style.width = (Math.random() * 6 + 5) + 'px';
+        piece.style.height = (Math.random() * 8 + 8) + 'px';
+        piece.style.animationDuration = (Math.random() * 2 + 2) + 's';
+        piece.style.animationDelay = '0s';
+        container.appendChild(piece);
+        setTimeout(() => piece.remove(), 4000);
+      }, i * 50);
+    }
+  }
+
+  // ── Invoice generator ──
+  function generateInvoice() {
+    const invoiceWindow = window.open('', '_blank');
+    const invoiceHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <title>Invoice HC-INV-${txn.slice(-6)}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #fff; color: #111; padding: 40px; }
+    .inv-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #39FF14; padding-bottom: 20px; margin-bottom: 24px; }
+    .inv-logo { font-size: 1.4rem; font-weight: 800; }
+    .inv-logo span { color: #1ecc00; }
+    .inv-title { font-size: 0.8rem; color: #666; margin-top: 2px; }
+    .inv-meta { text-align: right; font-size: 0.85rem; color: #444; }
+    .inv-meta strong { font-size: 1rem; color: #111; }
+    .inv-sim { background: #fff8e1; border: 1px solid #ffcc02; border-radius: 6px; padding: 8px 14px; font-size: 0.78rem; color: #b8860b; margin-bottom: 20px; }
+    .inv-section-title { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #888; margin-bottom: 10px; }
+    .inv-parties { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+    .inv-party { font-size: 0.85rem; line-height: 1.7; }
+    .inv-party strong { font-size: 0.95rem; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+    th { background: #f5f5f5; padding: 10px 12px; font-size: 0.78rem; font-weight: 700; text-align: left; text-transform: uppercase; letter-spacing: 0.04em; color: #555; }
+    td { padding: 10px 12px; font-size: 0.88rem; border-bottom: 1px solid #eee; }
+    .amount-section { margin-left: auto; max-width: 280px; }
+    .amt-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 0.88rem; }
+    .amt-row.total { border-top: 2px solid #39FF14; font-weight: 800; font-size: 1rem; padding-top: 10px; margin-top: 4px; color: #1ecc00; }
+    .inv-footer { border-top: 1px solid #eee; padding-top: 16px; font-size: 0.78rem; color: #888; text-align: center; }
+    .sim-watermark { position: fixed; bottom: 60px; right: 40px; font-size: 4rem; font-weight: 900; color: rgba(0,0,0,0.04); transform: rotate(-30deg); pointer-events: none; }
+  </style>
+</head>
+<body>
+  <div class="inv-header">
+    <div>
+      <div class="inv-logo">Halt &amp; <span>Charge</span></div>
+      <div class="inv-title">EV Charging Payment Invoice</div>
+    </div>
+    <div class="inv-meta">
+      <strong>Invoice #HC-INV-${txn.slice(-6)}</strong><br/>
+      Date: ${fmt.date(now)}<br/>
+      Time: ${fmt.time(now)}<br/>
+      Txn ID: ${txn}
+    </div>
+  </div>
+  <div class="inv-sim">⚠️ SIMULATED INVOICE — This is a demo document. No real payment was processed.</div>
+  <div class="inv-parties">
+    <div>
+      <div class="inv-section-title">From</div>
+      <div class="inv-party">
+        <strong>Halt &amp; Charge EV Solutions</strong><br/>
+        123 Green Energy Park,<br/>
+        Bengaluru, Karnataka 560001<br/>
+        GSTIN: 29AABCU9603R1ZX (Demo)<br/>
+        support@haltandcharge.in
+      </div>
+    </div>
+    <div>
+      <div class="inv-section-title">Charging Session</div>
+      <div class="inv-party">
+        <strong>Station: ${station}</strong><br/>
+        Charger: ${charger}<br/>
+        Session: SES-DEMO<br/>
+        Payment: UPI (Simulated)
+      </div>
+    </div>
+  </div>
+  <div class="inv-section-title">Service Details</div>
+  <table>
+    <thead><tr><th>#</th><th>Description</th><th>HSN</th><th>Rate</th><th>Qty</th><th>Amount</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td>EV Charging Service<br/><small style="color:#888">AC Fast Charging · Demo Session</small></td>
+        <td>998715</td>
+        <td>${fmt.currency(amount)}</td>
+        <td>1</td>
+        <td>${fmt.currency(amount)}</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="amount-section">
+    <div class="amt-row"><span>Subtotal</span><span>${fmt.currency(amount)}</span></div>
+    <div class="amt-row"><span>GST (18%)</span><span>Included</span></div>
+    <div class="amt-row"><span>Platform Fee</span><span>₹0.00</span></div>
+    <div class="amt-row total"><span>Total Paid</span><span>${fmt.currency(amount)}</span></div>
+  </div>
+  <div class="inv-footer">
+    Thank you for charging with Halt &amp; Charge · Powering India's EV Future · www.haltandcharge.in<br/>
+    <strong>⚡ DEMO / SIMULATED DOCUMENT — NOT A REAL TAX INVOICE ⚡</strong>
+  </div>
+  <div class="sim-watermark">DEMO</div>
+  <script>setTimeout(() => window.print(), 500);<\/script>
+</body>
+</html>`;
+    invoiceWindow.document.write(invoiceHtml);
+    invoiceWindow.document.close();
+    showToast('Invoice opened in new tab. Use Ctrl+P to save as PDF.', 'info', 4000);
+  }
+</script>
+</body>
+</html>

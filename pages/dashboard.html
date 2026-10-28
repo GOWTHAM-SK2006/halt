@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard — Halt & Charge</title>
+  <meta name="description" content="Admin dashboard to manage EV charging payment QR codes and sessions." />
+  <link rel="stylesheet" href="../css/styles.css" />
+  <!-- QR Code library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    /* ── Dashboard Layout ── */
+    body { background: var(--bg-primary); }
+
+    .dash-layout {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      min-height: 100vh;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      background: var(--bg-card);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 24px 0;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+    .sidebar-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 24px 28px;
+      border-bottom: 1px solid var(--border);
+      text-decoration: none;
+    }
+    .sidebar-logo img {
+      width: 44px;
+      height: 44px;
+      object-fit: contain;
+      filter: drop-shadow(0 0 8px rgba(57,255,20,0.5));
+    }
+    .sidebar-logo-text { font-size: 1.1rem; font-weight: 800; color: var(--white); }
+    .sidebar-logo-text span { color: var(--neon); }
+    .sidebar-logo-sub { font-size: 0.72rem; color: var(--muted); margin-top: 1px; }
+
+    .sidebar-nav { padding: 20px 12px; flex: 1; }
+    .nav-section-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 0 12px;
+      margin: 8px 0 6px;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--silver);
+      text-decoration: none;
+      cursor: pointer;
+      transition: var(--transition);
+      margin-bottom: 2px;
+      border: none;
+      background: none;
+      width: 100%;
+      text-align: left;
+    }
+    .nav-item:hover { background: var(--bg-elevated); color: var(--white); }
+    .nav-item.active { background: var(--neon-dim); color: var(--neon); }
+    .nav-item svg { flex-shrink: 0; }
+
+    .sidebar-footer {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border);
+    }
+    .admin-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .admin-avatar {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, #39FF14, #1ecc00);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.85rem;
+      color: #000;
+      flex-shrink: 0;
+    }
+    .admin-name { font-size: 0.88rem; font-weight: 600; color: var(--white); }
+    .admin-role { font-size: 0.75rem; color: var(--muted); }
+
+    /* Main content */
+    .dash-main {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      background: var(--bg-primary);
+    }
+    .dash-topbar {
+      background: rgba(5,5,5,0.95);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      backdrop-filter: blur(16px);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .dash-topbar-title { font-size: 1.05rem; font-weight: 700; color: var(--white); }
+    .dash-topbar-sub { font-size: 0.8rem; color: var(--muted); margin-top: 1px; }
+    .topbar-actions { display: flex; align-items: center; gap: 10px; }
+
+    .dash-content { padding: 32px; flex: 1; }
+
+    /* Stats row */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      transition: var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: var(--neon);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .stat-card:hover::before { opacity: 1; }
+    .stat-card:hover { border-color: var(--border-neon); transform: translateY(-2px); }
+    .stat-icon {
+      width: 40px; height: 40px;
+      border-radius: var(--radius);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem;
+      margin-bottom: 12px;
+    }
+    .stat-value { font-size: 1.6rem; font-weight: 800; color: var(--white); }
+    .stat-label { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+    .stat-delta { font-size: 0.78rem; font-weight: 600; margin-top: 4px; }
+    .delta-up { color: var(--neon); }
+    .delta-dn { color: var(--red); }
+
+    /* Two-column layout */
+    .dash-grid {
+      display: grid;
+      grid-template-columns: 1fr 420px;
+      gap: 24px;
+      align-items: start;
+    }
+
+    /* QR Generator */
+    .qr-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+    .section-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-icon {
+      width: 36px; height: 36px;
+      background: var(--neon-dim);
+      border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--neon);
+      flex-shrink: 0;
+    }
+    .section-title { font-size: 1rem; font-weight: 700; color: var(--white); }
+    .section-sub { font-size: 0.78rem; color: var(--muted); margin-top: 1px; }
+    .section-body { padding: 24px; }
+
+    .qr-form { display: flex; flex-direction: column; gap: 16px; }
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .total-preview {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-neon);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .total-label { font-size: 0.85rem; color: var(--muted); font-weight: 600; }
+    .total-amount { font-size: 1.5rem; font-weight: 800; color: var(--neon); font-family: var(--mono); }
+
+    /* QR Preview */
+    .qr-preview-wrap {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+    .qr-preview-header {
+      background: var(--bg-elevated);
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+    }
+    .qr-preview-title { font-size: 0.88rem; font-weight: 600; color: var(--white); }
+    .qr-canvas-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 32px;
+      min-height: 260px;
+      background: var(--bg-secondary);
+      position: relative;
+    }
+    .qr-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      color: var(--muted);
+    }
+    .qr-placeholder svg { opacity: 0.3; }
+    .qr-placeholder p { font-size: 0.85rem; }
+    #qrCanvas {
+      background: white;
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .qr-canvas-area #qrCanvas canvas {
+      display: block;
+    }
+    .qr-actions {
+      padding: 16px 20px;
+      display: flex;
+      gap: 10px;
+      border-top: 1px solid var(--border);
+      background: var(--bg-elevated);
+    }
+    .qr-link-display {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      font-size: 0.78rem;
+      color: var(--muted);
+      font-family: var(--mono);
+      word-break: break-all;
+      margin: 16px 24px 0;
+    }
+
+    /* Sessions Table */
+    .sessions-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      margin-top: 24px;
+    }
+    .table-wrap { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    thead th {
+      background: var(--bg-elevated);
+      padding: 12px 16px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--bg-elevated); }
+    td {
+      padding: 14px 16px;
+      font-size: 0.88rem;
+      color: var(--silver);
+      white-space: nowrap;
+    }
+    td .txn-id { font-family: var(--mono); color: var(--white); font-size: 0.82rem; }
+    td .station-name { color: var(--white); font-weight: 500; }
+
+    /* Mobile sidebar toggle */
+    .mobile-menu-btn {
+      display: none;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 8px;
+      color: var(--white);
+      cursor: pointer;
+    }
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 200;
+    }
+
+    @media (max-width: 1100px) {
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .dash-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 900px) {
+      .dash-layout { grid-template-columns: 1fr; }
+      .sidebar {
+        position: fixed;
+        left: -280px;
+        top: 0;
+        z-index: 300;
+        transition: left 0.3s ease;
+        width: 260px;
+        box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+      }
+      .sidebar.open { left: 0; }
+      .sidebar-overlay.open { display: block; }
+      .mobile-menu-btn { display: flex; }
+      .dash-content { padding: 20px 16px; }
+      .dash-topbar { padding: 14px 16px; }
+    }
+    @media (max-width: 600px) {
+      .stats-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+      .form-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Mobile sidebar overlay -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<div class="dash-layout">
+  <!-- ══ Sidebar ══ -->
+  <aside class="sidebar" id="sidebar">
+    <a class="sidebar-logo" href="../index.html">
+      <img src="../assets/logo.png" alt="Halt &amp; Charge Logo" />
+      <div>
+        <div class="sidebar-logo-text">Halt &amp; <span>Charge</span></div>
+        <div class="sidebar-logo-sub">Admin Panel</div>
+      </div>
+    </a>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Main</div>
+      <a class="nav-item active" href="#qr-gen">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+          <rect x="3" y="14" width="7" height="7"/>
+          <path d="M14 14h.01M14 17h.01M17 14h.01M17 17h.01M20 14h.01M20 17h.01M20 20h.01M17 20h.01M14 20h.01"/>
+        </svg>
+        Create Payment QR
+      </a>
+      <a class="nav-item" href="#sessions">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+        </svg>
+        Payment Sessions
+      </a>
+      <div class="nav-section-label" style="margin-top:16px">Links</div>
+      <a class="nav-item" href="payment.html?station=HC-BLR-01&charger=CHG-005&amount=250&tax=45&total=295" target="_blank">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/>
+        </svg>
+        Customer Page Demo
+      </a>
+      <a class="nav-item" href="result.html?status=success&txn=HC1A2B3C&amount=295&station=HC-BLR-01" target="_blank">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+        Payment Results Demo
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="admin-info">
+        <div class="admin-avatar">A</div>
+        <div>
+          <div class="admin-name">Administrator</div>
+          <div class="admin-role">Super Admin · Demo Mode</div>
+        </div>
+      </div>
+      <button class="btn btn-danger btn-sm w-full" id="logoutBtn" style="justify-content:center">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+        Logout
+      </button>
+    </div>
+  </aside>
+
+  <!-- ══ Main ══ -->
+  <div class="dash-main">
+    <!-- Topbar -->
+    <header class="dash-topbar">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Open sidebar">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        </button>
+        <div>
+          <div class="dash-topbar-title">Dashboard</div>
+          <div class="dash-topbar-sub">Generate QR codes &amp; manage sessions</div>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <div class="demo-banner" style="padding:6px 14px;font-size:0.78rem">🔧 Demo Mode</div>
+        <div style="font-size:0.8rem;color:var(--muted)" id="clockEl"></div>
+      </div>
+    </header>
+
+    <!-- Content -->
+    <div class="dash-content">
+      <!-- Stats -->
+      <div class="stats-grid" data-animate>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:rgba(57,255,20,0.1);color:var(--neon)">₹</div>
+          <div class="stat-value" id="statRevenue">₹14,820</div>
+          <div class="stat-label">Today's Revenue</div>
+          <div class="stat-delta delta-up">↑ 12.4% vs yesterday</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:rgba(100,160,255,0.1);color:#90b8ff">⚡</div>
+          <div class="stat-value">47</div>
+          <div class="stat-label">Sessions Today</div>
+          <div class="stat-delta delta-up">↑ 8 more than avg</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:rgba(255,170,0,0.1);color:var(--amber)">⏳</div>
+          <div class="stat-value">3</div>
+          <div class="stat-label">Pending Payments</div>
+          <div class="stat-delta delta-dn">↓ needs attention</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:rgba(255,59,59,0.1);color:var(--red)">✕</div>
+          <div class="stat-value">1</div>
+          <div class="stat-label">Failed Today</div>
+          <div class="stat-delta delta-dn">↑ 1 more than avg</div>
+        </div>
+      </div>
+
+      <!-- Grid: QR Generator + Preview -->
+      <div class="dash-grid" id="qr-gen">
+        <!-- QR Generator Form -->
+        <div class="qr-section">
+          <div class="section-header">
+            <div class="section-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+                <path d="M14 14h.01"/>
+              </svg>
+            </div>
+            <div>
+              <div class="section-title">Create Payment QR</div>
+              <div class="section-sub">Generate a QR code for customer EV charging payment</div>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="demo-banner" style="margin-bottom:18px">
+              ⚠️ Demo Mode — QR codes link to a simulated payment page. No real transactions.
+            </div>
+            <form class="qr-form" id="qrForm" novalidate>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label" for="stationName">Station Name</label>
+                  <input class="form-input" type="text" id="stationName" placeholder="e.g. Halt BLR Koramangala" value="HC-BLR-Koramangala" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="chargerId">Charger ID</label>
+                  <input class="form-input" type="text" id="chargerId" placeholder="e.g. CHG-005" value="CHG-005" />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label" for="amount">Charging Amount (₹)</label>
+                  <div class="form-input-prefix">
+                    <span class="prefix">₹</span>
+                    <input class="form-input" type="number" id="amount" placeholder="0.00" min="1" max="10000" step="0.01" value="250" />
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="taxRate">GST / Tax (%)</label>
+                  <div class="form-input-prefix">
+                    <span class="prefix" style="color:var(--amber)">%</span>
+                    <input class="form-input" type="number" id="taxRate" placeholder="18" min="0" max="28" step="0.1" value="18" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Total preview -->
+              <div class="total-preview">
+                <div>
+                  <div class="total-label">Total Payable</div>
+                  <div style="font-size:0.78rem;color:var(--muted);margin-top:2px">Base + GST</div>
+                </div>
+                <div style="text-align:right">
+                  <div class="total-amount" id="totalDisplay">₹295.00</div>
+                  <div style="font-size:0.75rem;color:var(--muted);margin-top:2px">Tax: <span id="taxDisplay" style="color:var(--amber)">₹45.00</span></div>
+                </div>
+              </div>
+
+              <button type="submit" class="btn btn-primary btn-lg w-full" id="generateBtn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+                  <path d="M14 14h.01M14 17h.01M17 14h.01M17 17h.01M20 14h.01M20 17h.01M20 20h.01M17 20h.01M14 20h.01"/>
+                </svg>
+                Generate Payment QR Code
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- QR Preview -->
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div class="qr-preview-wrap">
+            <div class="qr-preview-header">
+              <div class="qr-preview-title">QR Preview</div>
+              <span class="badge badge-pending badge-dot" id="qrStatus">Waiting</span>
+            </div>
+            <div class="qr-canvas-area" id="qrCanvasArea">
+              <!-- Placeholder -->
+              <div class="qr-placeholder" id="qrPlaceholder">
+                <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                  <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+                  <path d="M14 14h.01M14 17h.01M17 14h.01M17 17h.01M20 14h.01M20 17h.01M20 20h.01M17 20h.01M14 20h.01"/>
+                </svg>
+                <p>Fill the form &amp; click Generate</p>
+              </div>
+              <!-- QR will render here -->
+              <div id="qrCanvas" style="display:none"></div>
+            </div>
+            <div class="qr-actions" id="qrActions" style="display:none">
+              <button class="btn btn-primary btn-sm" id="downloadQrBtn" style="flex:1">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Download QR
+              </button>
+              <button class="btn btn-outline btn-sm" id="copyLinkBtn" style="flex:1">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                </svg>
+                Copy Link
+              </button>
+            </div>
+          </div>
+
+          <!-- Generated link display -->
+          <div class="qr-link-display hidden" id="qrLinkDisplay">
+            <div style="color:var(--muted);font-size:0.72rem;margin-bottom:4px;font-family:var(--font)">Payment Link:</div>
+            <span id="qrLinkText"></span>
+          </div>
+
+          <!-- Open customer page button -->
+          <button class="btn btn-outline w-full hidden" id="openPaymentBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+              <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+            </svg>
+            Open Customer Payment Page
+          </button>
+        </div>
+      </div>
+
+      <!-- Sessions Table -->
+      <div class="sessions-section" id="sessions" style="margin-top:32px" data-animate>
+        <div class="section-header">
+          <div class="section-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+            </svg>
+          </div>
+          <div>
+            <div class="section-title">Recent Payment Sessions</div>
+            <div class="section-sub">Demo data — simulated charging payment history</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table id="sessionsTable">
+            <thead>
+              <tr>
+                <th>Transaction ID</th>
+                <th>Station</th>
+                <th>Charger</th>
+                <th>Amount</th>
+                <th>Tax</th>
+                <th>Total</th>
+                <th>Date / Time</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="sessionsTbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /dash-content -->
+  </div><!-- /dash-main -->
+</div><!-- /dash-layout -->
+
+<script src="../js/utils.js"></script>
+<script>
+  // ── Auth guard ──
+  Auth.guard('../index.html');
+
+  // ── Clock ──
+  function updateClock() {
+    const el = document.getElementById('clockEl');
+    if (el) el.textContent = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+  updateClock(); setInterval(updateClock, 1000);
+
+  // ── Mobile sidebar ──
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  document.getElementById('mobileMenuBtn').addEventListener('click', () => {
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('open');
+  });
+  overlay.addEventListener('click', () => {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('open');
+  });
+
+  // ── Logout ──
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    Auth.doLogout();
+    showToast('Logged out successfully.', 'info');
+    setTimeout(() => window.location.href = '../index.html', 800);
+  });
+
+  // ── Total calculator ──
+  const amountEl  = document.getElementById('amount');
+  const taxEl     = document.getElementById('taxRate');
+  const totalDisp = document.getElementById('totalDisplay');
+  const taxDisp   = document.getElementById('taxDisplay');
+
+  function recalcTotal() {
+    const base = parseFloat(amountEl.value) || 0;
+    const rate = parseFloat(taxEl.value) || 0;
+    const tax = (base * rate) / 100;
+    const total = base + tax;
+    totalDisp.textContent = fmt.currency(total);
+    taxDisp.textContent   = fmt.currency(tax);
+  }
+  amountEl.addEventListener('input', recalcTotal);
+  taxEl.addEventListener('input', recalcTotal);
+  recalcTotal();
+
+  // ── QR Generation ──
+  let currentPaymentUrl = '';
+  const qrForm      = document.getElementById('qrForm');
+  const qrCanvas    = document.getElementById('qrCanvas');
+  const qrPlaceholder = document.getElementById('qrPlaceholder');
+  const qrActions   = document.getElementById('qrActions');
+  const qrStatus    = document.getElementById('qrStatus');
+  const qrLinkDisplay = document.getElementById('qrLinkDisplay');
+  const qrLinkText  = document.getElementById('qrLinkText');
+  const openPayBtn  = document.getElementById('openPaymentBtn');
+
+  qrForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const station = document.getElementById('stationName').value.trim() || 'HC-Station';
+    const charger = document.getElementById('chargerId').value.trim() || 'CHG-001';
+    const amount  = parseFloat(amountEl.value) || 0;
+    const taxRate = parseFloat(taxEl.value) || 0;
+    const tax     = (amount * taxRate) / 100;
+    const total   = amount + tax;
+
+    if (amount <= 0) { showToast('Please enter a valid amount.', 'error'); return; }
+
+    showLoader('Generating QR Code...');
+
+    await new Promise(r => setTimeout(r, 800));
+
+    // Build payment URL
+    const base = window.location.origin + window.location.pathname.replace('pages/dashboard.html', '');
+    const params = new URLSearchParams({
+      station: encodeURIComponent(station),
+      charger,
+      amount: amount.toFixed(2),
+      tax: tax.toFixed(2),
+      total: total.toFixed(2),
+    });
+    currentPaymentUrl = `${base}pages/payment.html?${params}`;
+
+    // Clear old QR
+    qrCanvas.innerHTML = '';
+    qrCanvas.style.display = 'block';
+    qrPlaceholder.style.display = 'none';
+
+    // Generate QR
+    new QRCode(qrCanvas, {
+      text: currentPaymentUrl,
+      width: 200,
+      height: 200,
+      colorDark: '#000000',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.H,
+    });
+
+    // Update UI
+    qrStatus.className = 'badge badge-paid badge-dot';
+    qrStatus.textContent = 'Ready';
+    qrActions.style.display = 'flex';
+    qrLinkDisplay.classList.remove('hidden');
+    qrLinkText.textContent = currentPaymentUrl;
+    openPayBtn.classList.remove('hidden');
+    openPayBtn.onclick = () => window.open(currentPaymentUrl, '_blank');
+
+    hideLoader();
+    showToast('QR code generated successfully!', 'success');
+
+    // Add session to table
+    addSession({ station, charger, amount, tax, total });
+  });
+
+  // ── Download QR ──
+  document.getElementById('downloadQrBtn').addEventListener('click', () => {
+    const img = qrCanvas.querySelector('img') || qrCanvas.querySelector('canvas');
+    if (!img) return;
+    const link = document.createElement('a');
+    if (img.tagName === 'CANVAS') {
+      link.href = img.toDataURL('image/png');
+    } else {
+      link.href = img.src;
+    }
+    link.download = `halt-charge-qr-${Date.now()}.png`;
+    link.click();
+    showToast('QR code downloaded!', 'success');
+  });
+
+  // ── Copy Link ──
+  document.getElementById('copyLinkBtn').addEventListener('click', () => {
+    if (!currentPaymentUrl) return;
+    navigator.clipboard.writeText(currentPaymentUrl).then(() => {
+      showToast('Payment link copied to clipboard!', 'success');
+    }).catch(() => {
+      showToast('Copy failed. Please copy manually.', 'warning');
+    });
+  });
+
+  // ── Sessions Table ──
+  const DEMO_SESSIONS = [
+    { txn: 'HC7F2A9D', station: 'HC-BLR-Koramangala', charger: 'CHG-001', amount: 320, tax: 57.6,  total: 377.6,  time: Date.now() - 3600000*1, status: 'paid'    },
+    { txn: 'HC3E8B1C', station: 'HC-CHN-Anna Nagar',  charger: 'CHG-012', amount: 180, tax: 32.4,  total: 212.4,  time: Date.now() - 3600000*2, status: 'pending'  },
+    { txn: 'HC9A4C6F', station: 'HC-MUM-Bandra',      charger: 'CHG-007', amount: 450, tax: 81,    total: 531,    time: Date.now() - 3600000*3, status: 'paid'    },
+    { txn: 'HC2D7E5B', station: 'HC-DEL-Connaught',   charger: 'CHG-003', amount: 210, tax: 37.8,  total: 247.8,  time: Date.now() - 3600000*5, status: 'failed'   },
+    { txn: 'HC5F1A8E', station: 'HC-HYD-Gachibowli',  charger: 'CHG-009', amount: 390, tax: 70.2,  total: 460.2,  time: Date.now() - 3600000*6, status: 'paid'    },
+    { txn: 'HC8B3D2A', station: 'HC-BLR-Whitefield',  charger: 'CHG-014', amount: 150, tax: 27,    total: 177,    time: Date.now() - 3600000*8, status: 'pending'  },
+  ];
+  const tbody = document.getElementById('sessionsTbody');
+
+  function statusBadge(s) {
+    const map = {
+      paid: '<span class="badge badge-paid badge-dot">Paid</span>',
+      pending: '<span class="badge badge-pending badge-dot">Pending</span>',
+      failed: '<span class="badge badge-failed badge-dot">Failed</span>',
+    };
+    return map[s] || '';
+  }
+  function resultLink(s, txn, amount, station) {
+    const params = `status=${s}&txn=${txn}&amount=${amount}&station=${encodeURIComponent(station)}`;
+    return `<a href="result.html?${params}" target="_blank" class="btn btn-ghost btn-sm" style="font-size:0.78rem">View</a>`;
+  }
+  function renderSessions(sessions) {
+    tbody.innerHTML = '';
+    sessions.forEach(s => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><span class="txn-id">${s.txn}</span></td>
+        <td><span class="station-name">${s.station}</span></td>
+        <td>${s.charger}</td>
+        <td>${fmt.currency(s.amount)}</td>
+        <td style="color:var(--amber)">${fmt.currency(s.tax)}</td>
+        <td style="color:var(--neon);font-weight:700">${fmt.currency(s.total)}</td>
+        <td>${fmt.date(s.time)} ${fmt.time(s.time)}</td>
+        <td>${statusBadge(s.status)}</td>
+        <td>${resultLink(s.status, s.txn, s.total, s.station)}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+  renderSessions(DEMO_SESSIONS);
+
+  function addSession({ station, charger, amount, tax, total }) {
+    const newSession = {
+      txn: fmt.txnId(),
+      station,
+      charger,
+      amount,
+      tax,
+      total,
+      time: Date.now(),
+      status: 'pending',
+    };
+    DEMO_SESSIONS.unshift(newSession);
+    renderSessions(DEMO_SESSIONS);
+    document.getElementById('sessions').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+</script>
+</body>
+</html>
