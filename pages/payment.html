@@ -491,23 +491,232 @@
   </div>
 </div>
 
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script src="../js/utils.js"></script>
 <script>
   // ── Read URL params ──
   const p = Params.all();
+  const sessionToken = Params.get('token');    // real backend token
   const station = decodeURIComponent(p.station || 'HC-BLR-Koramangala');
   const charger = p.charger || 'CHG-005';
   const baseAmount = parseFloat(p.amount || 250);
   const tax = parseFloat(p.tax || 45);
   const total = parseFloat(p.total || 295);
 
-  // ── Populate UI ──
-  document.getElementById('stationNameEl').textContent = station;
-  document.getElementById('chargerIdEl').textContent = charger;
-  document.getElementById('baseAmountEl').textContent = fmt.currency(baseAmount);
-  document.getElementById('taxAmountEl').textContent = fmt.currency(tax);
-  document.getElementById('totalAmountEl').textContent = fmt.currency(total);
-  document.getElementById('sessionIdEl').textContent = 'SES-' + Math.floor(Math.random()*90000+10000);
+  // ── If token present, load session details from backend ──
+  (async () => {
+    if (sessionToken) {
+      try {
+        const resp = await API.fetch('/api/payment/session/' + sessionToken);
+        const s = resp.data;
+        document.getElementById('stationNameEl').textContent  = s.stationName;
+        document.getElementById('chargerIdEl').textContent    = s.chargerId;
+        document.getElementById('baseAmountEl').textContent   = fmt.currency(s.baseAmount);
+        document.getElementById('taxAmountEl').textContent    = fmt.currency(s.taxAmount);
+        document.getElementById('totalAmountEl').textContent  = fmt.currency(s.finalAmount);
+        document.getElementById('sessionIdEl').textContent    = 'SES-' + s.id;
+        document.getElementById('payBtnText').textContent     = 'Pay Now ' + fmt.currency(s.finalAmount);
+        document.querySelector('.demo-notice').style.display  = 'none'; // hide demo banner
+        return;
+      } catch (e) {
+        console.warn('Could not load session from backend, using URL params:', e.message);
+      }
+    }
+    // Fallback: use URL query params
+    document.getElementById('stationNameEl').textContent  = station;
+    document.getElementById('chargerIdEl').textContent    = charger;
+    document.getElementById('baseAmountEl').textContent   = fmt.currency(baseAmount);
+    document.getElementById('taxAmountEl').textContent    = fmt.currency(tax);
+    document.getElementById('totalAmountEl').textContent  = fmt.currency(total);
+    document.getElementById('sessionIdEl').textContent    = 'SES-' + Math.floor(Math.random()*90000+10000);
+  })();
+
+  // ── Update pay button text ──
+  function updatePayBtnText() {
+    const key = i18n[currentLang]?.pay_now || `Pay Now ${fmt.currency(total)}`;
+    document.getElementById('payBtnText').textContent = key.replace('₹295.00', fmt.currency(total));
+  }
+
+  // ── i18n ──
+  const i18n = {
+    en: {
+      demo_notice: 'Demo Mode — No real payment will be processed',
+      station_active: 'Station Active', charger_id: 'Charger ID', charger_type: 'Type',
+      session_id: 'Session ID', validity: 'Valid For', payment_summary: 'Payment Summary',
+      charging_fee: 'Charging Fee', gst: 'GST (18%)', platform_fee: 'Platform Fee',
+      free: 'Free', total_payable: 'Total Payable',
+      pay_now: `Pay Now ${fmt.currency(total)}`,
+      secure_msg: '256-bit SSL Secured · Powered by Razorpay',
+      help_title: 'Need Help?', call_support: 'Call Support',
+      whatsapp_support: 'WhatsApp Us', email_support: 'Email Support',
+    },
+    ta: {
+      demo_notice: 'டெமோ முறை — உண்மையான கட்டணம் செலுத்தப்படாது',
+      station_active: 'நிலையம் செயலில் உள்ளது', charger_id: 'சார்ஜர் ஐடி', charger_type: 'வகை',
+      session_id: 'அமர்வு ஐடி', validity: 'செல்லுபடியாகும் நேரம்', payment_summary: 'கட்டண சுருக்கம்',
+      charging_fee: 'சார்ஜிங் கட்டணம்', gst: 'ஜிஎஸ்டி (18%)', platform_fee: 'தள கட்டணம்',
+      free: 'இலவசம்', total_payable: 'செலுத்த வேண்டிய மொத்தம்',
+      pay_now: `இப்போது செலுத்துங்கள் ${fmt.currency(total)}`,
+      secure_msg: '256-பிட் SSL பாதுகாப்பு · Razorpay மூலம் இயக்கப்படுகிறது',
+      help_title: 'உதவி வேண்டுமா?', call_support: 'ஆதரவை அழைக்கவும்',
+      whatsapp_support: 'வாட்ச்அப் அனுப்பவும்', email_support: 'மின்னஞ்சல் ஆதரவு',
+    },
+  };
+
+  let currentLang = 'en';
+
+  function setLang(lang) {
+    currentLang = lang;
+    document.documentElement.setAttribute('data-lang', lang);
+    document.getElementById('langEn').classList.toggle('active', lang === 'en');
+    document.getElementById('langTa').classList.toggle('active', lang === 'ta');
+    const dict = i18n[lang];
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.getAttribute('data-i18n');
+      if (dict[key]) el.textContent = dict[key];
+    });
+    updatePayBtnText();
+  }
+
+  // ── Pay button ──
+  const payBtn     = document.getElementById('payNowBtn');
+  const payOverlay = document.getElementById('payOverlay');
+
+  payBtn.addEventListener('click', () => {
+    if (sessionToken) {
+      startRealPayment(sessionToken);
+    } else {
+      simulatePayment();
+    }
+  });
+
+  // ── Real Razorpay Payment Flow ──
+  async function startRealPayment(token) {
+    payBtn.classList.add('loading');
+    payOverlay.classList.add('active');
+    document.getElementById('payOverlayText').textContent = 'Creating payment order...';
+    document.getElementById('step1').classList.add('active');
+
+    try {
+      const orderResp = await API.fetch('/api/payment/order', {
+        method: 'POST',
+        body: JSON.stringify({ token }),
+      });
+      const order = orderResp.data;
+
+      document.getElementById('step1').classList.replace('active', 'done');
+      document.getElementById('step1').textContent = '🔐 Order created ✓';
+      document.getElementById('step2').classList.add('active');
+      await sleep(400);
+
+      payOverlay.classList.remove('active');
+      payBtn.classList.remove('loading');
+
+      const rzpOptions = {
+        key:         order.keyId,
+        amount:      Math.round(order.amount * 100),
+        currency:    'INR',
+        name:        'Halt & Charge',
+        description: `EV Charging · ${order.stationName} · ${order.chargerId}`,
+        order_id:    order.orderId,
+        theme:       { color: '#39FF14' },
+        modal: { ondismiss: () => { showToast('Payment cancelled.', 'warning'); payBtn.classList.remove('loading'); } },
+        handler: async function (response) {
+          payBtn.classList.add('loading');
+          payOverlay.classList.add('active');
+          document.getElementById('payOverlayText').textContent = 'Verifying payment...';
+          document.getElementById('step3').classList.add('active');
+          try {
+            const verifyResp = await API.fetch('/api/payment/verify', {
+              method: 'POST',
+              body: JSON.stringify({
+                razorpayOrderId:   response.razorpay_order_id,
+                razorpayPaymentId: response.razorpay_payment_id,
+                razorpaySignature: response.razorpay_signature,
+                token,
+              }),
+            });
+            document.getElementById('step3').classList.replace('active', 'done');
+            document.getElementById('step3').textContent = '💳 Payment verified ✓';
+            document.getElementById('step4').classList.add('active');
+            await sleep(500);
+            document.getElementById('step4').classList.replace('active', 'done');
+            document.getElementById('step4').textContent = '✅ Transaction confirmed ✓';
+            await sleep(400);
+            const result = verifyResp.data;
+            const params = new URLSearchParams({
+              status: 'success', txn: result.transactionId || token,
+              amount: result.amount || order.amount, station: order.stationName,
+              charger: order.chargerId, token,
+            });
+            window.location.href = `result.html?${params}`;
+          } catch (verifyErr) {
+            payOverlay.classList.remove('active');
+            payBtn.classList.remove('loading');
+            showToast('Verification failed: ' + verifyErr.message, 'error');
+            setTimeout(() => {
+              const params = new URLSearchParams({ status: 'failed', txn: token, amount: order.amount, station: order.stationName, charger: order.chargerId });
+              window.location.href = `result.html?${params}`;
+            }, 1500);
+          }
+        },
+        prefill: { name: '', email: '', contact: '' },
+        notes: { station: order.stationName, charger: order.chargerId },
+      };
+
+      const rzp = new Razorpay(rzpOptions);
+      rzp.on('payment.failed', (response) => {
+        payOverlay.classList.remove('active');
+        payBtn.classList.remove('loading');
+        showToast('Payment failed: ' + response.error.description, 'error');
+        const params = new URLSearchParams({ status: 'failed', txn: token, amount: order.amount, station: order.stationName, charger: order.chargerId });
+        setTimeout(() => { window.location.href = `result.html?${params}`; }, 1500);
+      });
+      rzp.open();
+
+    } catch (err) {
+      payOverlay.classList.remove('active');
+      payBtn.classList.remove('loading');
+      showToast('Could not start payment: ' + err.message + ' — demo mode', 'warning');
+      simulatePayment();
+    }
+  }
+
+  // ── Demo / Fallback Simulation ──
+  async function simulatePayment() {
+    payBtn.classList.add('loading');
+    payOverlay.classList.add('active');
+
+    document.getElementById('step1').classList.add('active');
+    await sleep(800);
+    document.getElementById('step1').classList.replace('active', 'done');
+    document.getElementById('step1').textContent = '🔐 Session verified ✓';
+
+    document.getElementById('step2').classList.add('active');
+    await sleep(900);
+    document.getElementById('step2').classList.replace('active', 'done');
+    document.getElementById('step2').textContent = '🏦 Gateway connected ✓';
+
+    document.getElementById('step3').classList.add('active');
+    document.getElementById('payOverlayText').textContent = 'Processing Payment...';
+    await sleep(1100);
+    document.getElementById('step3').classList.replace('active', 'done');
+    document.getElementById('step3').textContent = '💳 Payment processed ✓';
+
+    document.getElementById('step4').classList.add('active');
+    await sleep(700);
+    document.getElementById('step4').classList.replace('active', 'done');
+    document.getElementById('step4').textContent = '✅ Transaction confirmed ✓';
+
+    await sleep(400);
+    const outcomes = ['success','success','success','success','success','success','success','success','pending','failed'];
+    const status = outcomes[Math.floor(Math.random() * outcomes.length)];
+    const txn = fmt.txnId();
+    const params = new URLSearchParams({ status, txn, amount: total.toFixed(2), station, charger });
+    window.location.href = `result.html?${params}`;
+  }
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
   // ── Update pay button text ──
   function updatePayBtnText() {

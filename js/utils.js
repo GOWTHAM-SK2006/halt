@@ -3,6 +3,34 @@
  * Reusable helpers for all pages
  */
 
+// ── Backend API Config ────────────────────────────────────────────
+const API = {
+  // Change this to your Railway backend URL after deployment
+  BASE_URL: 'https://halt-charge-backend-production.up.railway.app',
+
+  // Helper to build full API URLs
+  url: (path) => `${API.BASE_URL}${path}`,
+
+  // Get stored JWT token
+  getToken: () => Store.get('hc_jwt_token'),
+
+  // Authenticated fetch wrapper
+  fetch: async (path, options = {}) => {
+    const token = API.getToken();
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      ...(options.headers || {}),
+    };
+    const resp = await fetch(API.url(path), { ...options, headers });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ message: 'Request failed' }));
+      throw new Error(err.message || `HTTP ${resp.status}`);
+    }
+    return resp.json();
+  },
+};
+
 // ── Storage helpers ──────────────────────────────────────────────
 const Store = {
   get: (key, fallback = null) => {
@@ -14,12 +42,44 @@ const Store = {
 
 // ── Auth helpers ─────────────────────────────────────────────────
 const Auth = {
+  // Legacy demo credentials (kept for fallback if backend is unreachable)
   DEMO_USER: 'admin',
   DEMO_PASS: 'halt2024',
+
+  // Real login — calls backend JWT endpoint
+  loginWithBackend: async (username, password) => {
+    try {
+      const data = await API.fetch('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ username, password }),
+      });
+      if (data.success && data.data?.token) {
+        Store.set('hc_jwt_token', data.data.token);
+        Store.set('hc_auth', true);
+        Store.set('hc_login_time', Date.now());
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.warn('Backend login failed, falling back to demo auth:', err.message);
+      // Fallback to demo mode if backend unreachable
+      return Auth.login(username, password);
+    }
+  },
+
+  // Demo/fallback login
   login: (user, pass) => user === Auth.DEMO_USER && pass === Auth.DEMO_PASS,
+
   isLoggedIn: () => Store.get('hc_auth') === true,
+
   doLogin: () => { Store.set('hc_auth', true); Store.set('hc_login_time', Date.now()); },
-  doLogout: () => { Store.clear('hc_auth'); Store.clear('hc_login_time'); },
+
+  doLogout: () => {
+    Store.clear('hc_auth');
+    Store.clear('hc_login_time');
+    Store.clear('hc_jwt_token');
+  },
+
   guard: (redirectTo = '../index.html') => {
     if (!Auth.isLoggedIn()) { window.location.href = redirectTo; }
   },
@@ -104,9 +164,6 @@ function hideLoader() {
   const o = document.getElementById('hc-loader');
   if (o) o.style.display = 'none';
 }
-
-// ── QR Code generator (simple canvas-based fallback) ─────────────
-// We'll use the qrcode.js library loaded via CDN
 
 // ── Format helpers ───────────────────────────────────────────────
 const fmt = {

@@ -1,0 +1,42 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+
+  flyway:
+    enabled: false
+
+app:
+  jwt:
+    secret: test-jwt-secret-key-must-be-32-chars-long!
+    expiration-ms: 3600000
+
+  razorpay:
+    key-id: rzp_test_TtPOyCBVSsMzUT
+    key-secret: rXTMzEyRsN6kbPVDvOctX4ka
+    webhook-secret: test_webhook_secret
+
+  admin:
+    username: admin
+    password: halt2024
+
+  frontend:
+    base-url: http://localhost:5500
+
+  cors:
+    allowed-origins: http://localhost:5500,http://127.0.0.1:5500
+
+logging:
+  level:
+    com.haltcharge: WARN
+    org.springframework: WARN

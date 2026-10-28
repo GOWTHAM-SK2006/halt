@@ -339,11 +339,10 @@
       loginBtn.classList.add('loading');
       document.getElementById('loginBtnText').textContent = 'Authenticating...';
 
-      // Simulate async check
-      await new Promise(r => setTimeout(r, 1200));
+      // Real backend auth (falls back to demo mode if backend unreachable)
+      const success = await Auth.loginWithBackend(user, pass);
 
-      if (Auth.login(user, pass)) {
-        Auth.doLogin();
+      if (success) {
         document.getElementById('loginBtnText').textContent = '✓ Success! Redirecting...';
         showToast('Welcome back, Admin!', 'success');
         setTimeout(() => { window.location.href = 'pages/dashboard.html'; }, 800);

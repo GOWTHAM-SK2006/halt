@@ -1,12 +1,9 @@
-# Railway service configuration for the Spring Boot backend
-# In Railway dashboard: set Root Directory = "halt-charge-backend"
-
 [build]
-builder = "DOCKERFILE"
+builder = "dockerfile"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-healthcheckPath = "/actuator/health"
-healthcheckTimeout = 300
-restartPolicyType = "ON_FAILURE"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 60
+restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3

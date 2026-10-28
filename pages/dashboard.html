@@ -711,55 +711,71 @@
     const charger = document.getElementById('chargerId').value.trim() || 'CHG-001';
     const amount  = parseFloat(amountEl.value) || 0;
     const taxRate = parseFloat(taxEl.value) || 0;
-    const tax     = (amount * taxRate) / 100;
+    const tax     = parseFloat(((amount * taxRate) / 100).toFixed(2));
     const total   = amount + tax;
 
     if (amount <= 0) { showToast('Please enter a valid amount.', 'error'); return; }
 
-    showLoader('Generating QR Code...');
+    showLoader('Creating payment session...');
 
-    await new Promise(r => setTimeout(r, 800));
+    try {
+      // Call real backend
+      const resp = await API.fetch('/api/admin/sessions', {
+        method: 'POST',
+        body: JSON.stringify({
+          stationName: station, chargerId: charger,
+          baseAmount: amount, taxAmount: tax,
+          additionalFees: 0, discount: 0,
+        }),
+      });
+      const session = resp.data;
+      currentPaymentUrl = session.paymentUrl;
 
-    // Build payment URL
-    const base = window.location.origin + window.location.pathname.replace('pages/dashboard.html', '');
-    const params = new URLSearchParams({
-      station: encodeURIComponent(station),
-      charger,
-      amount: amount.toFixed(2),
-      tax: tax.toFixed(2),
-      total: total.toFixed(2),
-    });
-    currentPaymentUrl = `${base}pages/payment.html?${params}`;
+      qrCanvas.innerHTML = '';
+      qrCanvas.style.display = 'block';
+      qrPlaceholder.style.display = 'none';
 
-    // Clear old QR
-    qrCanvas.innerHTML = '';
-    qrCanvas.style.display = 'block';
-    qrPlaceholder.style.display = 'none';
+      if (session.qrCodeUrl && session.qrCodeUrl.startsWith('data:image')) {
+        const img = document.createElement('img');
+        img.src = session.qrCodeUrl;
+        img.style.cssText = 'width:200px;height:200px;border-radius:8px';
+        qrCanvas.appendChild(img);
+      } else {
+        new QRCode(qrCanvas, { text: currentPaymentUrl, width: 200, height: 200, colorDark: '#000000', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.H });
+      }
 
-    // Generate QR
-    new QRCode(qrCanvas, {
-      text: currentPaymentUrl,
-      width: 200,
-      height: 200,
-      colorDark: '#000000',
-      colorLight: '#ffffff',
-      correctLevel: QRCode.CorrectLevel.H,
-    });
+      qrStatus.className = 'badge badge-paid badge-dot';
+      qrStatus.textContent = 'Ready';
+      qrActions.style.display = 'flex';
+      qrLinkDisplay.classList.remove('hidden');
+      qrLinkText.textContent = currentPaymentUrl;
+      openPayBtn.classList.remove('hidden');
+      openPayBtn.onclick = () => window.open(currentPaymentUrl, '_blank');
 
-    // Update UI
-    qrStatus.className = 'badge badge-paid badge-dot';
-    qrStatus.textContent = 'Ready';
-    qrActions.style.display = 'flex';
-    qrLinkDisplay.classList.remove('hidden');
-    qrLinkText.textContent = currentPaymentUrl;
-    openPayBtn.classList.remove('hidden');
-    openPayBtn.onclick = () => window.open(currentPaymentUrl, '_blank');
+      hideLoader();
+      showToast('QR code generated successfully!', 'success');
+      loadSessions();
 
-    hideLoader();
-    showToast('QR code generated successfully!', 'success');
-
-    // Add session to table
-    addSession({ station, charger, amount, tax, total });
+    } catch (err) {
+      // Fallback: demo mode
+      hideLoader();
+      showToast('Backend unavailable — demo mode active.', 'warning');
+      const base = window.location.origin + window.location.pathname.replace('pages/dashboard.html', '');
+      const dParams = new URLSearchParams({ station: encodeURIComponent(station), charger, amount: amount.toFixed(2), tax: tax.toFixed(2), total: total.toFixed(2) });
+      currentPaymentUrl = `${base}pages/payment.html?${dParams}`;
+      qrCanvas.innerHTML = '';
+      qrCanvas.style.display = 'block';
+      qrPlaceholder.style.display = 'none';
+      new QRCode(qrCanvas, { text: currentPaymentUrl, width: 200, height: 200, colorDark: '#000000', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.H });
+      qrStatus.className = 'badge badge-paid badge-dot';
+      qrStatus.textContent = 'Ready (Demo)';
+      qrActions.style.display = 'flex';
+      qrLinkDisplay.classList.remove('hidden');
+      qrLinkText.textContent = currentPaymentUrl;
+      openPayBtn.classList.remove('hidden');
+      openPayBtn.onclick = () => window.open(currentPaymentUrl, '_blank');
+      addDemoSession({ station, charger, amount, tax, total });
+    }
   });
 
   // ── Download QR ──
@@ -799,15 +815,22 @@
   const tbody = document.getElementById('sessionsTbody');
 
   function statusBadge(s) {
+    const sLower = (s || '').toLowerCase();
     const map = {
-      paid: '<span class="badge badge-paid badge-dot">Paid</span>',
+      paid:    '<span class="badge badge-paid badge-dot">Paid</span>',
       pending: '<span class="badge badge-pending badge-dot">Pending</span>',
-      failed: '<span class="badge badge-failed badge-dot">Failed</span>',
+      failed:  '<span class="badge badge-failed badge-dot">Failed</span>',
+      created: '<span class="badge badge-pending badge-dot">Created</span>',
+      expired: '<span class="badge badge-failed badge-dot">Expired</span>',
     };
-    return map[s] || '';
+    return map[sLower] || `<span class="badge">${s}</span>`;
   }
-  function resultLink(s, txn, amount, station) {
-    const params = `status=${s}&txn=${txn}&amount=${amount}&station=${encodeURIComponent(station)}`;
+  function resultLink(s, token, amount, station) {
+    const sLower = (s || '').toLowerCase();
+    if (sLower === 'paid') {
+      return `<a href="${API.BASE_URL}/api/payment/invoice/${token}" target="_blank" class="btn btn-ghost btn-sm" style="font-size:0.78rem">Invoice</a>`;
+    }
+    const params = `status=${sLower}&txn=${token}&amount=${amount}&station=${encodeURIComponent(station)}`;
     return `<a href="result.html?${params}" target="_blank" class="btn btn-ghost btn-sm" style="font-size:0.78rem">View</a>`;
   }
   function renderSessions(sessions) {
@@ -815,33 +838,36 @@
     sessions.forEach(s => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td><span class="txn-id">${s.txn}</span></td>
-        <td><span class="station-name">${s.station}</span></td>
-        <td>${s.charger}</td>
-        <td>${fmt.currency(s.amount)}</td>
-        <td style="color:var(--amber)">${fmt.currency(s.tax)}</td>
-        <td style="color:var(--neon);font-weight:700">${fmt.currency(s.total)}</td>
-        <td>${fmt.date(s.time)} ${fmt.time(s.time)}</td>
+        <td><span class="txn-id">${(s.token || s.txn || '').substring(0,12)}...</span></td>
+        <td><span class="station-name">${s.stationName || s.station}</span></td>
+        <td>${s.chargerId || s.charger}</td>
+        <td>${fmt.currency(s.baseAmount || s.amount)}</td>
+        <td style="color:var(--amber)">${fmt.currency(s.taxAmount || s.tax)}</td>
+        <td style="color:var(--neon);font-weight:700">${fmt.currency(s.finalAmount || s.total)}</td>
+        <td>${fmt.date(s.createdAt || s.time)} ${fmt.time(s.createdAt || s.time)}</td>
         <td>${statusBadge(s.status)}</td>
-        <td>${resultLink(s.status, s.txn, s.total, s.station)}</td>
+        <td>${resultLink(s.status, s.token || s.txn, s.finalAmount || s.total, s.stationName || s.station)}</td>
       `;
       tbody.appendChild(tr);
     });
   }
-  renderSessions(DEMO_SESSIONS);
 
-  function addSession({ station, charger, amount, tax, total }) {
-    const newSession = {
-      txn: fmt.txnId(),
-      station,
-      charger,
-      amount,
-      tax,
-      total,
-      time: Date.now(),
-      status: 'pending',
-    };
-    DEMO_SESSIONS.unshift(newSession);
+  async function loadSessions() {
+    try {
+      const resp = await API.fetch('/api/admin/sessions');
+      renderSessions(resp.data || []);
+    } catch {
+      // Backend unavailable — show demo data
+      renderSessions(DEMO_SESSIONS);
+    }
+  }
+  loadSessions();
+
+  function addDemoSession({ station, charger, amount, tax, total }) {
+    DEMO_SESSIONS.unshift({
+      txn: fmt.txnId(), station, charger, amount, tax, total,
+      time: Date.now(), status: 'pending',
+    });
     renderSessions(DEMO_SESSIONS);
     document.getElementById('sessions').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
