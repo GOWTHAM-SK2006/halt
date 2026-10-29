@@ -1,54 +1,54 @@
 # syntax=docker/dockerfile:1
 # ── Halt & Charge Frontend — Static site served by nginx ──────────────────────
-# The frontend is plain HTML/CSS/JS (no Node.js build step needed).
-# The backend is a separate Railway service (halt-charge-backend/Dockerfile).
+# Plain HTML/CSS/JS — no Node.js build step. Backend is a separate service.
+#
+# Railway routes external HTTPS traffic to port 80 inside this container.
+# We hardcode port 80 — no runtime env substitution needed.
 
 FROM nginx:1.27-alpine
 
-# Default port — Railway overrides this with its own $PORT at runtime.
-# Must be set so envsubst always has a numeric value to substitute.
-ENV PORT=80
-
-# Remove default nginx placeholder page
-RUN rm -rf /usr/share/nginx/html/*
-
-# Copy all static frontend files into nginx's serve directory
-COPY index.html        /usr/share/nginx/html/
-COPY css/              /usr/share/nginx/html/css/
-COPY js/               /usr/share/nginx/html/js/
-COPY assets/           /usr/share/nginx/html/assets/
-COPY pages/            /usr/share/nginx/html/pages/
-
-# Write the config as a TEMPLATE (not a final config).
-# The official nginx image's entrypoint calls envsubst on /etc/nginx/templates/
-# at container startup, which substitutes ${PORT} with the real numeric value
-# and writes the result to /etc/nginx/conf.d/default.conf before nginx starts.
-# This is the correct way to use runtime env vars with the official nginx image.
-RUN mkdir -p /etc/nginx/templates && printf '\
-server {\n\
-    listen ${PORT};\n\
+# Write the nginx config directly (no template/envsubst — avoids $uri substitution issues)
+# mime.types is included by the base nginx.conf at http{} level, so JS/CSS/PNG
+# all get correct Content-Type headers.
+RUN printf 'server {\n\
+    listen 80;\n\
+    server_name _;\n\
+\n\
     root /usr/share/nginx/html;\n\
     index index.html;\n\
 \n\
-    # Serve files directly; fall back to index.html for direct page links\n\
+    # Correct MIME types are inherited from http{} include mime.types in nginx.conf.\n\
+    # Serve files exactly; only fall back to index.html when path does not exist.\n\
     location / {\n\
         try_files $uri $uri/ /index.html;\n\
     }\n\
 \n\
-    # Health check endpoint used by Railway\n\
+    # Health check used by Railway\n\
     location /healthz {\n\
+        access_log off;\n\
         return 200 "ok";\n\
         add_header Content-Type text/plain;\n\
     }\n\
 \n\
     gzip on;\n\
     gzip_types text/plain text/css application/javascript application/json image/svg+xml;\n\
-}\n\
-' > /etc/nginx/templates/default.conf.template
+}\n' > /etc/nginx/conf.d/default.conf
 
-# Remove the static default.conf so only the template-generated one is used
-RUN rm -f /etc/nginx/conf.d/default.conf
+# Verify config is valid before proceeding
+RUN nginx -t
+
+# Remove default nginx placeholder page, then copy frontend files
+RUN rm -rf /usr/share/nginx/html/*
+
+COPY index.html        /usr/share/nginx/html/
+COPY css/              /usr/share/nginx/html/css/
+COPY js/               /usr/share/nginx/html/js/
+COPY assets/           /usr/share/nginx/html/assets/
+COPY pages/            /usr/share/nginx/html/pages/
+
+# Final config check with all files present
+RUN nginx -t
 
 EXPOSE 80
 
-# No custom CMD — the base image entrypoint handles envsubst then starts nginx
+CMD ["nginx", "-g", "daemon off;"]
