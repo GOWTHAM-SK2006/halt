@@ -449,7 +449,7 @@
         </div>
       </div>
       <div class="topbar-actions">
-        <div class="demo-banner" style="padding:6px 14px;font-size:0.78rem">🔧 Demo Mode</div>
+        <div class="demo-banner" style="padding:6px 14px;font-size:0.78rem" id="demoModeBanner" style="display:none">🔧 Demo Mode</div>
         <div style="font-size:0.8rem;color:var(--muted)" id="clockEl"></div>
       </div>
     </header>
@@ -460,27 +460,27 @@
       <div class="stats-grid" data-animate>
         <div class="stat-card">
           <div class="stat-icon" style="background:rgba(57,255,20,0.1);color:var(--neon)">₹</div>
-          <div class="stat-value" id="statRevenue">₹14,820</div>
-          <div class="stat-label">Today's Revenue</div>
-          <div class="stat-delta delta-up">↑ 12.4% vs yesterday</div>
+          <div class="stat-value" id="statRevenue">—</div>
+          <div class="stat-label">Total Revenue</div>
+          <div class="stat-delta delta-up" id="statRevenueSub">Loading...</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background:rgba(100,160,255,0.1);color:#90b8ff">⚡</div>
-          <div class="stat-value">47</div>
-          <div class="stat-label">Sessions Today</div>
-          <div class="stat-delta delta-up">↑ 8 more than avg</div>
+          <div class="stat-value" id="statSessions">—</div>
+          <div class="stat-label">Total Sessions</div>
+          <div class="stat-delta delta-up" id="statSessionsSub">Loading...</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background:rgba(255,170,0,0.1);color:var(--amber)">⏳</div>
-          <div class="stat-value">3</div>
+          <div class="stat-value" id="statPending">—</div>
           <div class="stat-label">Pending Payments</div>
-          <div class="stat-delta delta-dn">↓ needs attention</div>
+          <div class="stat-delta delta-dn" id="statPendingSub">Loading...</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background:rgba(255,59,59,0.1);color:var(--red)">✕</div>
-          <div class="stat-value">1</div>
-          <div class="stat-label">Failed Today</div>
-          <div class="stat-delta delta-dn">↑ 1 more than avg</div>
+          <div class="stat-value" id="statFailed">—</div>
+          <div class="stat-label">Failed Sessions</div>
+          <div class="stat-delta delta-dn" id="statFailedSub">Loading...</div>
         </div>
       </div>
 
@@ -618,7 +618,7 @@
           </div>
           <div>
             <div class="section-title">Recent Payment Sessions</div>
-            <div class="section-sub">Demo data — simulated charging payment history</div>
+            <div class="section-sub" id="sessionsSub">Loading from database...</div>
           </div>
         </div>
         <div class="table-wrap">
@@ -757,24 +757,8 @@
       loadSessions();
 
     } catch (err) {
-      // Fallback: demo mode
       hideLoader();
-      showToast('Backend unavailable — demo mode active.', 'warning');
-      const base = window.location.origin + window.location.pathname.replace('pages/dashboard.html', '');
-      const dParams = new URLSearchParams({ station: encodeURIComponent(station), charger, amount: amount.toFixed(2), tax: tax.toFixed(2), total: total.toFixed(2) });
-      currentPaymentUrl = `${base}pages/payment.html?${dParams}`;
-      qrCanvas.innerHTML = '';
-      qrCanvas.style.display = 'block';
-      qrPlaceholder.style.display = 'none';
-      new QRCode(qrCanvas, { text: currentPaymentUrl, width: 200, height: 200, colorDark: '#000000', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.H });
-      qrStatus.className = 'badge badge-paid badge-dot';
-      qrStatus.textContent = 'Ready (Demo)';
-      qrActions.style.display = 'flex';
-      qrLinkDisplay.classList.remove('hidden');
-      qrLinkText.textContent = currentPaymentUrl;
-      openPayBtn.classList.remove('hidden');
-      openPayBtn.onclick = () => window.open(currentPaymentUrl, '_blank');
-      addDemoSession({ station, charger, amount, tax, total });
+      showToast('Could not create session: ' + (err.message || 'Backend unavailable.'), 'error');
     }
   });
 
@@ -804,14 +788,6 @@
   });
 
   // ── Sessions Table ──
-  const DEMO_SESSIONS = [
-    { txn: 'HC7F2A9D', station: 'HC-BLR-Koramangala', charger: 'CHG-001', amount: 320, tax: 57.6,  total: 377.6,  time: Date.now() - 3600000*1, status: 'paid'    },
-    { txn: 'HC3E8B1C', station: 'HC-CHN-Anna Nagar',  charger: 'CHG-012', amount: 180, tax: 32.4,  total: 212.4,  time: Date.now() - 3600000*2, status: 'pending'  },
-    { txn: 'HC9A4C6F', station: 'HC-MUM-Bandra',      charger: 'CHG-007', amount: 450, tax: 81,    total: 531,    time: Date.now() - 3600000*3, status: 'paid'    },
-    { txn: 'HC2D7E5B', station: 'HC-DEL-Connaught',   charger: 'CHG-003', amount: 210, tax: 37.8,  total: 247.8,  time: Date.now() - 3600000*5, status: 'failed'   },
-    { txn: 'HC5F1A8E', station: 'HC-HYD-Gachibowli',  charger: 'CHG-009', amount: 390, tax: 70.2,  total: 460.2,  time: Date.now() - 3600000*6, status: 'paid'    },
-    { txn: 'HC8B3D2A', station: 'HC-BLR-Whitefield',  charger: 'CHG-014', amount: 150, tax: 27,    total: 177,    time: Date.now() - 3600000*8, status: 'pending'  },
-  ];
   const tbody = document.getElementById('sessionsTbody');
 
   function statusBadge(s) {
@@ -825,6 +801,7 @@
     };
     return map[sLower] || `<span class="badge">${s}</span>`;
   }
+
   function resultLink(s, token, amount, station) {
     const sLower = (s || '').toLowerCase();
     if (sLower === 'paid') {
@@ -833,44 +810,81 @@
     const params = `status=${sLower}&txn=${token}&amount=${amount}&station=${encodeURIComponent(station)}`;
     return `<a href="result.html?${params}" target="_blank" class="btn btn-ghost btn-sm" style="font-size:0.78rem">View</a>`;
   }
+
+  function renderEmptyState(message) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="9" style="text-align:center;padding:48px 16px;color:var(--muted)">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" style="opacity:0.3">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <line x1="3" y1="9" x2="21" y2="9"/>
+              <line x1="9" y1="21" x2="9" y2="9"/>
+            </svg>
+            <span style="font-size:0.88rem">${message}</span>
+          </div>
+        </td>
+      </tr>
+    `;
+  }
+
+  function updateStats(sessions) {
+    const total      = sessions.length;
+    const paid       = sessions.filter(s => s.status === 'PAID');
+    const pending    = sessions.filter(s => ['PENDING','CREATED'].includes(s.status));
+    const failed     = sessions.filter(s => s.status === 'FAILED');
+    const revenue    = paid.reduce((sum, s) => sum + parseFloat(s.finalAmount || 0), 0);
+
+    document.getElementById('statRevenue').textContent   = fmt.currency(revenue);
+    document.getElementById('statRevenueSub').textContent = paid.length + ' paid session' + (paid.length !== 1 ? 's' : '');
+    document.getElementById('statSessions').textContent  = total;
+    document.getElementById('statSessionsSub').textContent = total > 0 ? 'All time' : 'No sessions yet';
+    document.getElementById('statPending').textContent   = pending.length;
+    document.getElementById('statPendingSub').textContent = pending.length > 0 ? '↓ needs attention' : 'None pending';
+    document.getElementById('statFailed').textContent    = failed.length;
+    document.getElementById('statFailedSub').textContent  = failed.length > 0 ? 'Review required' : 'No failures';
+  }
+
   function renderSessions(sessions) {
     tbody.innerHTML = '';
+    if (!sessions || sessions.length === 0) {
+      renderEmptyState('No payment sessions yet. Generate a QR code above to create one.');
+      return;
+    }
     sessions.forEach(s => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td><span class="txn-id">${(s.token || s.txn || '').substring(0,12)}...</span></td>
-        <td><span class="station-name">${s.stationName || s.station}</span></td>
-        <td>${s.chargerId || s.charger}</td>
-        <td>${fmt.currency(s.baseAmount || s.amount)}</td>
-        <td style="color:var(--amber)">${fmt.currency(s.taxAmount || s.tax)}</td>
-        <td style="color:var(--neon);font-weight:700">${fmt.currency(s.finalAmount || s.total)}</td>
-        <td>${fmt.date(s.createdAt || s.time)} ${fmt.time(s.createdAt || s.time)}</td>
+        <td><span class="txn-id">${(s.token || '').substring(0, 12)}...</span></td>
+        <td><span class="station-name">${s.stationName || ''}</span></td>
+        <td>${s.chargerId || ''}</td>
+        <td>${fmt.currency(s.baseAmount)}</td>
+        <td style="color:var(--amber)">${fmt.currency(s.taxAmount)}</td>
+        <td style="color:var(--neon);font-weight:700">${fmt.currency(s.finalAmount)}</td>
+        <td>${fmt.date(s.createdAt)} ${fmt.time(s.createdAt)}</td>
         <td>${statusBadge(s.status)}</td>
-        <td>${resultLink(s.status, s.token || s.txn, s.finalAmount || s.total, s.stationName || s.station)}</td>
+        <td>${resultLink(s.status, s.token, s.finalAmount, s.stationName)}</td>
       `;
       tbody.appendChild(tr);
     });
   }
 
   async function loadSessions() {
+    const sub = document.getElementById('sessionsSub');
     try {
       const resp = await API.fetch('/api/admin/sessions');
-      renderSessions(resp.data || []);
-    } catch {
-      // Backend unavailable — show demo data
-      renderSessions(DEMO_SESSIONS);
+      const sessions = resp.data || [];
+      renderSessions(sessions);
+      updateStats(sessions);
+      sub.textContent = sessions.length + ' session' + (sessions.length !== 1 ? 's' : '') + ' — live database';
+    } catch (err) {
+      // Do NOT fall back to fake data — show empty state with error message
+      renderEmptyState('Could not load sessions. Check backend connection.');
+      updateStats([]);
+      sub.textContent = 'Database unavailable';
+      console.error('Session load error:', err);
     }
   }
   loadSessions();
-
-  function addDemoSession({ station, charger, amount, tax, total }) {
-    DEMO_SESSIONS.unshift({
-      txn: fmt.txnId(), station, charger, amount, tax, total,
-      time: Date.now(), status: 'pending',
-    });
-    renderSessions(DEMO_SESSIONS);
-    document.getElementById('sessions').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
 </script>
 </body>
 </html>

@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -166,7 +167,7 @@ public class PaymentService {
         PaymentSession session = sessionRepo.findByToken(req.token())
             .orElseThrow(() -> new SessionNotFoundException("Session not found"));
 
-        // Prevent duplicate processing
+        // Prevent duplicate processing on the same session
         if (session.getStatus() == PaymentSession.PaymentStatus.PAID) {
             log.info("Duplicate payment verification attempt for token: {}", req.token());
             return buildSuccessResult(session);
@@ -176,6 +177,15 @@ public class PaymentService {
         if (!req.razorpayOrderId().equals(session.getRazorpayOrderId())) {
             log.warn("Order ID mismatch for token: {}", req.token());
             throw new PaymentException("Invalid payment order reference.");
+        }
+
+        // Guard against replay: ensure this payment ID isn't already recorded on another session
+        if (sessionRepo.existsByRazorpayPaymentId(req.razorpayPaymentId())) {
+            log.warn("Payment ID {} already recorded — duplicate verification rejected for token: {}",
+                req.razorpayPaymentId(), req.token());
+            session.setStatus(PaymentSession.PaymentStatus.FAILED);
+            sessionRepo.save(session);
+            throw new PaymentException("This payment has already been applied to another session.");
         }
 
         // Verify signature on the backend
@@ -263,7 +273,7 @@ public class PaymentService {
 
     @Transactional(readOnly = true)
     public List<PaymentSessionResponse> getRecentSessions() {
-        return sessionRepo.findRecentSessions()
+        return sessionRepo.findRecentSessions(PageRequest.of(0, 50))
             .stream()
             .map(PaymentSessionResponse::from)
             .collect(Collectors.toList());
@@ -318,6 +328,12 @@ public class PaymentService {
 
             String paymentId = paymentEntity.optString("id");
             String orderId   = paymentEntity.optString("order_id");
+
+            // Guard: skip if this payment ID is already recorded (idempotent webhook)
+            if (sessionRepo.existsByRazorpayPaymentId(paymentId)) {
+                log.info("Webhook payment.captured: paymentId {} already recorded — skipping", paymentId);
+                return;
+            }
 
             sessionRepo.findByRazorpayOrderId(orderId).ifPresent(session -> {
                 if (session.getStatus() != PaymentSession.PaymentStatus.PAID) {

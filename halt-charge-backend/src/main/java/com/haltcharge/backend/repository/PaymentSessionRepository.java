@@ -1,6 +1,7 @@
 package com.haltcharge.backend.repository;
 
 import com.haltcharge.backend.entity.PaymentSession;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -15,8 +16,8 @@ public interface PaymentSessionRepository extends JpaRepository<PaymentSession, 
 
     Optional<PaymentSession> findByRazorpayOrderId(String orderId);
 
-    @Query("SELECT ps FROM PaymentSession ps ORDER BY ps.createdAt DESC LIMIT 50")
-    List<PaymentSession> findRecentSessions();
+    @Query("SELECT ps FROM PaymentSession ps ORDER BY ps.createdAt DESC")
+    List<PaymentSession> findRecentSessions(Pageable pageable);
 
     boolean existsByRazorpayPaymentId(String paymentId);
 }
