@@ -1,0 +1,45 @@
+# Halt & Charge — nginx server config template
+#
+# ${PORT} is substituted at container startup by the official nginx:alpine
+# entrypoint's envsubst pass over /etc/nginx/templates/*.conf.template.
+# Railway injects $PORT; the Dockerfile sets ENV PORT=80 as a safe default.
+#
+# nginx's own variables ($uri, $host, $request_uri, etc.) are NOT shell
+# environment variables, so envsubst leaves them completely untouched.
+
+server {
+    listen       ${PORT};
+    server_name  _;
+
+    root  /usr/share/nginx/html;
+    index index.html;
+
+    # ── Static assets: exact match only, 404 on miss ─────────────────────────
+    # CRITICAL: do NOT fall back to index.html for .js / .css / image requests.
+    # If a JS file is missing and nginx returns index.html, the browser receives
+    # text/html and refuses to execute it as JavaScript (MIME type mismatch),
+    # causing "ReferenceError: API is not defined" and similar errors.
+    # Returning 404 makes the real problem visible in the Network tab.
+    location ~* \.(js|mjs|css|map|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        try_files $uri =404;
+        expires 1d;
+        add_header Cache-Control "public, no-transform";
+    }
+
+    # ── HTML pages and SPA fallback ───────────────────────────────────────────
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # ── Railway health check ─────────────────────────────────────────────────
+    location /healthz {
+        access_log off;
+        return 200 "ok";
+        add_header Content-Type text/plain;
+    }
+
+    # ── Compression ──────────────────────────────────────────────────────────
+    gzip         on;
+    gzip_vary    on;
+    gzip_types   text/plain text/css application/javascript application/json image/svg+xml;
+}
