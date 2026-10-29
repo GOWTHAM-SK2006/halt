@@ -1,10 +1,10 @@
-# Root Railway config — tells Railway to build the frontend using the Dockerfile
+# Root Railway config — static frontend served by nginx
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-healthcheckPath = "/"
-healthcheckTimeout = 120
+healthcheckPath = "/healthz"
+healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3

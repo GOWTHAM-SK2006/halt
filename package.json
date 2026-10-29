@@ -2,11 +2,7 @@
   "name": "halt-charge-monorepo",
   "version": "1.0.0",
   "private": true,
-  "description": "Halt & Charge EV Charging Payment Portal — monorepo root",
-  "scripts": {
-    "build": "cd halt-charge-payment && npm ci && npm run build",
-    "start": "node halt-charge-payment/.next/standalone/server.js"
-  },
+  "description": "Halt & Charge EV Charging Payment Portal — static frontend monorepo root",
   "engines": {
     "node": ">=20.0.0"
   }

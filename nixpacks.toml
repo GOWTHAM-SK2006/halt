@@ -1,16 +1,4 @@
-# Root-level Railpack/Nixpacks config
-# Tells Railway: build the Next.js frontend from halt-charge-payment/
-
-providers = ["node"]
-
-[phases.setup]
-nixPkgs = ["nodejs_20"]
-
-[phases.install]
-cmds = ["cd halt-charge-payment && npm ci"]
-
-[phases.build]
-cmds = ["cd halt-charge-payment && npm run build"]
-
-[start]
-cmd = "node halt-charge-payment/.next/standalone/server.js"
+# Root-level nixpacks config (unused — Railway uses DOCKERFILE builder for this service)
+# The frontend is plain static HTML/CSS/JS served by nginx.
+# No Node.js install or build phase required.
+# See: Dockerfile at repo root.

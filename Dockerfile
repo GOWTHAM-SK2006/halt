@@ -1,34 +1,42 @@
 # syntax=docker/dockerfile:1
-# ─── Stage 1: Build ───────────────────────────────────────────────────────────
-FROM node:20-alpine AS build
-WORKDIR /build
+# ── Halt & Charge Frontend — Static site served by nginx ──────────────────────
+# The frontend is plain HTML/CSS/JS (no Node.js build step needed).
+# The backend is a separate Railway service (halt-charge-backend/Dockerfile).
 
-# Copy only package files first (better layer caching)
-COPY halt-charge-payment/package.json halt-charge-payment/package-lock.json ./
-RUN npm ci
+FROM nginx:1.27-alpine
 
-# Copy full source and build
-COPY halt-charge-payment/ .
-RUN npm run build
+# Remove default nginx placeholder page
+RUN rm -rf /usr/share/nginx/html/*
 
-# ─── Stage 2: Runtime ─────────────────────────────────────────────────────────
-FROM node:20-alpine AS runtime
-WORKDIR /app
+# Copy all static frontend files into nginx's serve directory
+COPY index.html        /usr/share/nginx/html/
+COPY css/              /usr/share/nginx/html/css/
+COPY js/               /usr/share/nginx/html/js/
+COPY assets/           /usr/share/nginx/html/assets/
+COPY pages/            /usr/share/nginx/html/pages/
 
-ENV NODE_ENV=production
-ENV PORT=3000
-ENV HOSTNAME=0.0.0.0
+# nginx config: serve static files, route all 404s back to index.html
+# so that direct links to /pages/dashboard.html still work
+RUN printf 'server {\n\
+    listen ${PORT:-80};\n\
+    root /usr/share/nginx/html;\n\
+    index index.html;\n\
+\n\
+    # Serve files directly; fall back to index.html for client-side navigation\n\
+    location / {\n\
+        try_files $uri $uri/ /index.html;\n\
+    }\n\
+\n\
+    # Health check endpoint used by Railway\n\
+    location /healthz {\n\
+        return 200 "ok";\n\
+        add_header Content-Type text/plain;\n\
+    }\n\
+\n\
+    gzip on;\n\
+    gzip_types text/plain text/css application/javascript application/json image/svg+xml;\n\
+}\n' > /etc/nginx/conf.d/default.conf
 
-# Copy Next.js standalone server (server.js lives at the root of standalone/)
-COPY --from=build /build/.next/standalone ./
+EXPOSE 80
 
-# Copy static assets (CSS, JS chunks) into the right location
-COPY --from=build /build/.next/static ./.next/static
-
-# Copy public assets (logo, icons, etc.)
-COPY --from=build /build/public ./public
-
-EXPOSE 3000
-
-# server.js is at /app/server.js after copying standalone
-CMD ["node", "server.js"]
+CMD ["nginx", "-g", "daemon off;"]

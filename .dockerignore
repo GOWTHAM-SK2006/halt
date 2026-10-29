@@ -1,25 +1,18 @@
-# Docker build context exclusions
-# Keeps the Docker image lean by excluding things the build doesn't need
+# Docker build context exclusions for the root frontend service
+# The frontend is plain static HTML/CSS/JS — no Node.js build needed.
 
-# Backend — not needed for frontend Docker build
+# Exclude the backend (has its own separate Railway service & Dockerfile)
 halt-charge-backend/
 
-# Frontend build artifacts and dev files
-halt-charge-payment/node_modules/
-halt-charge-payment/.next/
-halt-charge-payment/.env.local
-halt-charge-payment/.env*.local
-
-# Git and IDE
+# Git and IDE metadata
 .git/
 .gitignore
 .idea/
 .vscode/
 
-# Docs
+# Docs and build config not needed inside the image
 README.md
 *.md
-
-# Other config files at root (Dockerfile uses its own logic)
 nixpacks.toml
 package.json
+railway.toml
